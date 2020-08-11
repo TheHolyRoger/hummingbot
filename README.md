@@ -1,3 +1,9 @@
+# This repo is maintained for the [AltMarkets.io](https://altmarkets.io/) API 
+## (also includes one or two custom strats)
+
+For support, go to the [AltMarkets Discord](https://discord.gg/d9cAHtR) and look for TheHoliestRoger.
+[My AltMarkets ref link.](https://v2.altmarkets.io/signup?refid=IDAB8AAA3402)
+
 ![Hummingbot](https://i.ibb.co/X5zNkKw/blacklogo-with-text.png)
 
 ----
