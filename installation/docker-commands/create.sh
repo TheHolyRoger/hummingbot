@@ -36,7 +36,7 @@ echo
 echo "ℹ️  Confirm below if the instance and its folders are correct:"
 echo
 printf "%30s %5s\n" "Instance name:" "$INSTANCE_NAME"
-printf "%30s %5s\n" "Version:" "coinalpha/hummingbot:$TAG"
+printf "%30s %5s\n" "Version:" "theholiestroger/hummingbot:$TAG"
 echo
 printf "%30s %5s\n" "Main folder path:" "$PWD/$FOLDER"
 printf "%30s %5s\n" "Config files:" "├── $FOLDER/hummingbot_conf"
@@ -78,7 +78,7 @@ create_instance () {
  --mount "type=bind,source=$(pwd)/$FOLDER/hummingbot_data,destination=/data/" \
  --mount "type=bind,source=$(pwd)/$FOLDER/hummingbot_scripts,destination=/scripts/" \
  --mount "type=bind,source=$(pwd)/$FOLDER/hummingbot_certs,destination=/certs/" \
- coinalpha/hummingbot:$TAG
+ theholiestroger/hummingbot:$TAG
 }
 
 prompt_proceed

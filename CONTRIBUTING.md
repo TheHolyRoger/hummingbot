@@ -3,11 +3,11 @@
 ## General workflow
 
 1. Fork the repo
-1. Create a new branch from the [`development`](https://github.com/CoinAlpha/hummingbot/tree/development) branch (see: [branch naming guidelines](#branch-naming-guidelines))
+1. Create a new branch from the [`development`](https://github.com/TheHolyRoger/hummingbot/tree/development) branch (see: [branch naming guidelines](#branch-naming-guidelines))
 1. Make commits to your branch
 1. When you've finished with your fix or feature:
     - Rebase upstream changes into your branch
-    - Submit a pull request to the [`development`](https://github.com/CoinAlpha/hummingbot/tree/development) branch
+    - Submit a pull request to the [`development`](https://github.com/TheHolyRoger/hummingbot/tree/development) branch
     - Include a description of your changes
 1. Your pull request will be reviewed by [CoinAlpha's development team](mailto:dev@coinalpha.com).
 1. Fix any issues raised by your code reviewer, and push your fixes as a single new commit.
@@ -20,7 +20,7 @@
 Use github’s interface to make a fork of the repo, then add that repo as an upstream remote:
 
 ```
-git remote add upstream https://github.com/CoinAlpha/hummingbot.git
+git remote add upstream https://github.com/TheHolyRoger/hummingbot.git
 ```
 
 ### Branch naming guidelines

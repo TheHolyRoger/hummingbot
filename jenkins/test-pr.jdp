@@ -1,5 +1,5 @@
 // Variabiles for the pipeline
-def githubUrl = 'https://github.com/CoinAlpha/hummingbot'
+def githubUrl = 'https://github.com/TheHolyRoger/hummingbot'
 def githubContext = 'ci/jenkins: stable tests'
 
 // Jenkins environment variables

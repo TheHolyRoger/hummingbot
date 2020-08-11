@@ -1,6 +1,6 @@
 # Docker Instructions
 
-Compiled versions of `hummingbot` are available on Docker Hub at [`coinalpha/hummingbot`](https://hub.docker.com/r/coinalpha/hummingbot).
+Compiled versions of `hummingbot` are available on Docker Hub at [`theholiestroger/hummingbot`](https://hub.docker.com/r/theholiestroger/hummingbot).
 
 ## Running `hummingbot` with Docker
 
@@ -17,16 +17,16 @@ For instructions on operating `hummingbot` with Docker, navigate to [`hummingbot
 export TAG=my-label
 
 # Build docker image
-$ docker build -t coinalpha/hummingbot:$TAG -f Dockerfile .
+$ docker build -t theholiestroger/hummingbot:$TAG -f Dockerfile .
 
 # Push docker image to docker hub
-$ docker push coinalpha/hummingbot:$TAG
+$ docker push theholiestroger/hummingbot:$TAG
 ```
 
 #### Build and Push
 
 ```sh
-$ docker image rm coinalpha/hummingbot:$TAG && \
-  docker build -t coinalpha/hummingbot:$TAG -f Dockerfile . && \
-  docker push coinalpha/hummingbot:$TAG
+$ docker image rm theholiestroger/hummingbot:$TAG && \
+  docker build -t theholiestroger/hummingbot:$TAG -f Dockerfile . && \
+  docker push theholiestroger/hummingbot:$TAG
 ```

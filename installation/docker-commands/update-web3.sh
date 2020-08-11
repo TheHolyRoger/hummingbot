@@ -74,7 +74,7 @@ done
 # =============================================
 # EXECUTE SCRIPT
 echo
-echo "Hummingbot version: coinalpha/hummingbot:$TAG"
+echo "Hummingbot version: theholiestroger/hummingbot:$TAG"
 echo "List of instances to be updated:"
 j="0"
 while [ $j -le $i ]
@@ -95,7 +95,7 @@ then
     j=$[$j+1]
   done
   # 2) Delete old image
-  docker image rm coinalpha/hummingbot:$TAG
+  docker image rm theholiestroger/hummingbot:$TAG
   # 3) Re-create instances with latest hummingbot release
   j="0"
   while [ $j -le $i ]
@@ -107,7 +107,7 @@ then
     --mount "type=bind,source=$(pwd)/${FOLDERS[$j]}/hummingbot_logs,destination=/logs/" \
     --mount "type=bind,source=$(pwd)/${FOLDERs[$j]}/hummingbot_data,destination=/data/" \
     --mount "type=bind,source=$(pwd)/${FOLDERS[$j]}/hummingbot_scripts,destination=/scripts/" \
-    coinalpha/hummingbot:$TAG
+    theholiestroger/hummingbot:$TAG
     j=$[$j+1]
   done
   echo
