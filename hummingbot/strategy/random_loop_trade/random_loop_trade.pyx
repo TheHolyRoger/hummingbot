@@ -66,7 +66,7 @@ cdef class RandomLoopTrade(StrategyBase):
                  order_amount_min: Decimal = Decimal("0.0"),
                  order_amount_max: Decimal = Decimal("0.0"),
                  logging_options: int = OPTION_LOG_ALL,
-                 status_report_interval: float = 900):
+                 status_report_interval: float = 20):
         """
         :param market_infos: list of market trading pairs
         :param order_type: type of order to place
@@ -296,21 +296,22 @@ cdef class RandomLoopTrade(StrategyBase):
             list active_maker_orders = self.active_limit_orders
 
         try:
-            if not self._all_markets_ready:
-                self._all_markets_ready = all([market.ready for market in self._sb_markets])
+            if current_tick > last_tick or timestamp <= self._start_timestamp + 3:
                 if not self._all_markets_ready:
-                    # Markets not ready yet. Don't do anything.
-                    if should_report_warnings:
-                        self.logger().warning(f"Markets are not ready. No market making trades are permitted.")
-                    return
+                    self._all_markets_ready = all([market.ready for market in self._sb_markets])
+                    if not self._all_markets_ready:
+                        # Markets not ready yet. Don't do anything.
+                        if should_report_warnings:
+                            self.logger().warning(f"Markets are not ready. No market making trades are permitted.")
+                        return
 
-            if should_report_warnings:
-                if not all([market.network_status is NetworkStatus.CONNECTED for market in self._sb_markets]):
-                    self.logger().warning(f"WARNING: Some markets are not connected or are down at the moment. Market "
-                                          f"making may be dangerous when markets or networks are unstable.")
+                if should_report_warnings:
+                    if not all([market.network_status is NetworkStatus.CONNECTED for market in self._sb_markets]):
+                        self.logger().warning(f"WARNING: Some markets are not connected or are down at the moment. Market "
+                                              f"making may be dangerous when markets or networks are unstable.")
 
-            for market_info in self._market_infos.values():
-                self.c_process_market(market_info)
+                for market_info in self._market_infos.values():
+                    self.c_process_market(market_info)
         finally:
             self._last_timestamp = timestamp
 
