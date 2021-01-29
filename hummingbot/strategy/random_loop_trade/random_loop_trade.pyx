@@ -378,8 +378,8 @@ cdef class RandomLoopTrade(StrategyBase):
         """
         cdef:
             ExchangeBase market = market_info.market
-            object base_asset_balance = market.c_get_balance(market_info.base_asset)
-            object quote_asset_balance = market.c_get_balance(market_info.quote_asset)
+            object base_asset_balance = market.c_get_available_balance(market_info.base_asset)
+            object quote_asset_balance = market.c_get_available_balance(market_info.quote_asset)
             OrderBook order_book = market_info.order_book
             object price = market_info.get_price_for_volume(True, self._order_amount).result_price
         if math.isnan(price):
