@@ -34,6 +34,14 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         object _inventory_cost_price_delegate
         object _price_type
         bint _take_if_crossed
+        bint _track_tradehistory_enabled
+        object _track_tradehistory_hours
+        object _track_tradehistory_allowed_loss
+        object _track_tradehistory_profit_wanted
+        bint _track_tradehistory_ownside_enabled
+        object _track_tradehistory_ownside_allowedloss
+        bint _track_tradehistory_careful_enabled
+        int _track_tradehistory_careful_limittrades
         object _price_ceiling
         object _price_floor
         bint _ping_pong_enabled
@@ -64,6 +72,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
     cdef c_apply_order_size_modifiers(self, object proposal)
     cdef c_apply_inventory_skew(self, object proposal)
     cdef c_apply_budget_constraint(self, object proposal)
+    cdef c_apply_profit_constraint(self, object proposal)
 
     cdef c_filter_out_takers(self, object proposal)
     cdef c_apply_order_optimization(self, object proposal)

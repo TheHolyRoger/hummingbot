@@ -2,7 +2,7 @@
 ###       Pure market making strategy config         ###
 ########################################################
 
-template_version: 20
+template_version: 21
 strategy: null
 
 # Exchange and token parameters.
@@ -111,6 +111,16 @@ price_source_custom_api: null
 
 #Take order if they cross order book when external price source is enabled
 take_if_crossed: null
+
+#Profit and Loss Tracking
+track_tradehistory_enabled: null
+track_tradehistory_hours: null
+track_tradehistory_allowed_loss: null
+track_tradehistory_profit_wanted: null
+track_tradehistory_ownside_enabled: null
+track_tradehistory_ownside_allowedloss: null
+track_tradehistory_careful_enabled: null
+track_tradehistory_careful_limittrades: null
 
 # Use user provided orders to directly override the orders placed by order_amount and order_level_parameter
 # This is an advanced feature and user is expected to directly edit this field in config file

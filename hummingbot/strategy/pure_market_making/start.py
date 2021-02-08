@@ -73,6 +73,14 @@ def start(self):
             db = HummingbotApplication.main_application().trade_fill_db
             inventory_cost_price_delegate = InventoryCostPriceDelegate(db, trading_pair)
         take_if_crossed = c_map.get("take_if_crossed").value
+        track_tradehistory_enabled = c_map.get("track_tradehistory_enabled").value
+        track_tradehistory_hours = c_map.get("track_tradehistory_hours").value
+        track_tradehistory_allowed_loss = c_map.get("track_tradehistory_allowed_loss").value / Decimal('100')
+        track_tradehistory_profit_wanted = c_map.get("track_tradehistory_profit_wanted").value / Decimal('100')
+        track_tradehistory_ownside_enabled = c_map.get("track_tradehistory_ownside_enabled").value
+        track_tradehistory_ownside_allowedloss = c_map.get("track_tradehistory_ownside_allowedloss").value / Decimal('100')
+        track_tradehistory_careful_enabled = c_map.get("track_tradehistory_careful_enabled").value
+        track_tradehistory_careful_limittrades = c_map.get("track_tradehistory_careful_limittrades").value
 
         strategy_logging_options = PureMarketMakingStrategy.OPTION_LOG_ALL
 
@@ -100,6 +108,14 @@ def start(self):
             inventory_cost_price_delegate=inventory_cost_price_delegate,
             price_type=price_type,
             take_if_crossed=take_if_crossed,
+            track_tradehistory_enabled=track_tradehistory_enabled,
+            track_tradehistory_hours=track_tradehistory_hours,
+            track_tradehistory_allowed_loss=track_tradehistory_allowed_loss,
+            track_tradehistory_profit_wanted=track_tradehistory_profit_wanted,
+            track_tradehistory_ownside_enabled=track_tradehistory_ownside_enabled,
+            track_tradehistory_ownside_allowedloss=track_tradehistory_ownside_allowedloss,
+            track_tradehistory_careful_enabled=track_tradehistory_careful_enabled,
+            track_tradehistory_careful_limittrades=track_tradehistory_careful_limittrades,
             price_ceiling=price_ceiling,
             price_floor=price_floor,
             ping_pong_enabled=ping_pong_enabled,
