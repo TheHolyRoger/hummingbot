@@ -39,6 +39,8 @@ from .inventory_skew_calculator cimport c_calculate_bid_ask_ratios_from_base_ass
 from .inventory_skew_calculator import calculate_total_order_size
 from .order_book_asset_price_delegate cimport OrderBookAssetPriceDelegate
 from .inventory_cost_price_delegate import InventoryCostPriceDelegate
+from .market_indicator_delegate import MarketIndicatorDelegate
+from .market_indicator_delegate cimport MarketIndicatorDelegate
 
 
 NaN = float("nan")
@@ -86,14 +88,16 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                  add_transaction_costs_to_orders: bool = False,
                  asset_price_delegate: AssetPriceDelegate = None,
                  inventory_cost_price_delegate: InventoryCostPriceDelegate = None,
+                 market_indicator_delegate: MarketIndicatorDelegate = None,
+                 market_indicator_reduce_orders_to_pct: Decimal = s_decimal_zero,
                  price_type: str = "mid_price",
                  take_if_crossed: bool = False,
                  track_tradehistory_enabled: bool = False,
                  track_tradehistory_hours: Decimal = Decimal(4),
-                 track_tradehistory_allowed_loss: Decimal = Decimal(20),
-                 track_tradehistory_profit_wanted: Decimal = Decimal(20),
+                 track_tradehistory_allowed_loss: Decimal = Decimal("0.2"),
+                 track_tradehistory_profit_wanted: Decimal = Decimal("0.2"),
                  track_tradehistory_ownside_enabled: bool = False,
-                 track_tradehistory_ownside_allowedloss: Decimal = Decimal(20),
+                 track_tradehistory_ownside_allowedloss: Decimal = Decimal("0.2"),
                  track_tradehistory_careful_enabled: bool = False,
                  track_tradehistory_careful_limittrades: int = 3,
                  price_ceiling: Decimal = s_decimal_neg_one,
@@ -136,6 +140,8 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         self._add_transaction_costs_to_orders = add_transaction_costs_to_orders
         self._asset_price_delegate = asset_price_delegate
         self._inventory_cost_price_delegate = inventory_cost_price_delegate
+        self._market_indicator_delegate = market_indicator_delegate
+        self._market_indicator_reduce_orders_to_pct = market_indicator_reduce_orders_to_pct
         self._price_type = self.get_price_type(price_type)
         self._take_if_crossed = take_if_crossed
         self._track_tradehistory_enabled = track_tradehistory_enabled
@@ -528,6 +534,22 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         self._inventory_cost_price_delegate = value
 
     @property
+    def market_indicator_delegate(self) -> MarketIndicatorDelegate:
+        return self._market_indicator_delegate
+
+    @market_indicator_delegate.setter
+    def market_indicator_delegate(self, value: MarketIndicatorDelegate):
+        self._market_indicator_delegate = value
+
+    @property
+    def market_indicator_reduce_orders_to_pct(self) -> Decimal:
+        return self._market_indicator_reduce_orders_to_pct
+
+    @market_indicator_reduce_orders_to_pct.setter
+    def market_indicator_reduce_orders_to_pct(self, value: Decimal):
+        self._market_indicator_reduce_orders_to_pct = value
+
+    @property
     def order_tracker(self):
         return self._sb_order_tracker
 
@@ -693,6 +715,11 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         markets_df = self.market_status_data_frame([self._market_info])
         lines.extend(["", "  Markets:"] + ["    " + line for line in markets_df.to_string(index=False).split("\n")])
 
+        if self.market_indicator_delegate is not None:
+            trend_str = "Up" if self.market_indicator_delegate.trend_is_up() else "Down"
+            trend_name = self.market_indicator_delegate.market_indicator_feed.name
+            lines.extend(["", "  Trend:"] + [f"    Market Trend is {trend_str} ({trend_name})"])
+
         assets_df = self.pure_mm_assets_df(not self._inventory_skew_enabled)
         # append inventory skew stats.
         if self._inventory_skew_enabled:
@@ -776,8 +803,11 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                 # 5. Apply budget constraint, i.e. can't buy/sell more than what you have.
                 self.c_apply_budget_constraint(proposal)
                 # 6. Check profitable
-                if self.track_tradehistory_enabled:
+                if self._track_tradehistory_enabled:
                     self.c_apply_profit_constraint(proposal)
+                # 7. Check profitable
+                if self._market_indicator_delegate is not None:
+                    self.c_apply_indicator_constraint(proposal)
 
                 if not self._take_if_crossed:
                     self.c_filter_out_takers(proposal)
@@ -1058,6 +1088,30 @@ cdef class PureMarketMakingStrategy(StrategyBase):
 
         proposal.sells = [o for o in proposal.sells if o.size > 0]
     # TRADE TRACKER
+
+    # TREND TRACKER
+    cdef c_apply_indicator_constraint(self, object proposal):
+        cdef:
+            MarketIndicatorDelegate indicator = self._market_indicator_delegate
+            object indicator_orders_pct = self._market_indicator_reduce_orders_to_pct
+            bint market_trend_up
+            bint market_trend_down
+
+        market_trend_up = indicator.c_trend_is_up()
+        market_trend_down = indicator.c_trend_is_down()
+
+        for buy in proposal.buys:
+            if not market_trend_up:
+                buy.size = buy.size * indicator_orders_pct
+
+        proposal.buys = [o for o in proposal.buys if o.size > 0]
+
+        for sell in proposal.sells:
+            if not market_trend_down:
+                sell.size = sell.size * indicator_orders_pct
+
+        proposal.sells = [o for o in proposal.sells if o.size > 0]
+    # TREND TRACKER
 
     cdef c_filter_out_takers(self, object proposal):
         cdef:

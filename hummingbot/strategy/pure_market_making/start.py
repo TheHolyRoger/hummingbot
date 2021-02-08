@@ -10,6 +10,7 @@ from hummingbot.strategy.pure_market_making import (
     OrderBookAssetPriceDelegate,
     APIAssetPriceDelegate,
     InventoryCostPriceDelegate,
+    MarketIndicatorDelegate,
 )
 from hummingbot.strategy.pure_market_making.pure_market_making_config_map import pure_market_making_config_map as c_map
 from hummingbot.connector.exchange.paper_trade import create_paper_trade_market
@@ -82,6 +83,15 @@ def start(self):
         track_tradehistory_careful_enabled = c_map.get("track_tradehistory_careful_enabled").value
         track_tradehistory_careful_limittrades = c_map.get("track_tradehistory_careful_limittrades").value
 
+        market_indicator_enabled = c_map.get("market_indicator_enabled").value
+        market_indicator_delegate = None
+        market_indicator_reduce_orders_to_pct = c_map.get("market_indicator_reduce_orders_to_pct").value / Decimal('100')
+        if market_indicator_enabled is True:
+            indicator_url = c_map.get("market_indicator_url").value
+            indicator_key = c_map.get("market_indicator_apikey").value
+            indicator_refresh_time = c_map.get("market_indicator_refresh_time").value
+            market_indicator_delegate = MarketIndicatorDelegate(indicator_url, indicator_key, indicator_refresh_time)
+
         strategy_logging_options = PureMarketMakingStrategy.OPTION_LOG_ALL
 
         self.strategy = PureMarketMakingStrategy(
@@ -106,6 +116,8 @@ def start(self):
             logging_options=strategy_logging_options,
             asset_price_delegate=asset_price_delegate,
             inventory_cost_price_delegate=inventory_cost_price_delegate,
+            market_indicator_delegate=market_indicator_delegate,
+            market_indicator_reduce_orders_to_pct=market_indicator_reduce_orders_to_pct,
             price_type=price_type,
             take_if_crossed=take_if_crossed,
             track_tradehistory_enabled=track_tradehistory_enabled,

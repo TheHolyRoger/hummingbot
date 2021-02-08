@@ -122,6 +122,12 @@ track_tradehistory_ownside_allowedloss: null
 track_tradehistory_careful_enabled: null
 track_tradehistory_careful_limittrades: null
 
+market_indicator_enabled: null
+market_indicator_url: null
+market_indicator_apikey: null
+market_indicator_refresh_time: null
+market_indicator_reduce_orders_to_pct: null
+
 # Use user provided orders to directly override the orders placed by order_amount and order_level_parameter
 # This is an advanced feature and user is expected to directly edit this field in config file
 # Below is an sample input, the format is a dictionary, the key is user-defined order name, the value is a list which includes buy/sell, order spread, and order amount

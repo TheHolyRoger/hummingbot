@@ -32,6 +32,8 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         bint _add_transaction_costs_to_orders
         object _asset_price_delegate
         object _inventory_cost_price_delegate
+        object _market_indicator_delegate
+        object _market_indicator_reduce_orders_to_pct
         object _price_type
         bint _take_if_crossed
         bint _track_tradehistory_enabled
@@ -73,6 +75,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
     cdef c_apply_inventory_skew(self, object proposal)
     cdef c_apply_budget_constraint(self, object proposal)
     cdef c_apply_profit_constraint(self, object proposal)
+    cdef c_apply_indicator_constraint(self, object proposal)
 
     cdef c_filter_out_takers(self, object proposal)
     cdef c_apply_order_optimization(self, object proposal)

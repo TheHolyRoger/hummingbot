@@ -409,4 +409,35 @@ pure_market_making_config_map = {
                   type_str="int",
                   validator=lambda v: validate_int(v, min_value=0, inclusive=True),
                   default=3),
+    "market_indicator_enabled":
+        ConfigVar(key="market_indicator_enabled",
+                  prompt="Enable Market trend indicator tracking with external API? (Yes/No) >>> ",
+                  type_str="bool",
+                  validator=validate_bool,
+                  default=False),
+    "market_indicator_url":
+        ConfigVar(key="market_indicator_url",
+                  prompt="What is the URL of your indicator API? >>> ",
+                  required_if=lambda: pure_market_making_config_map.get("market_indicator_enabled").value is True,
+                  type_str="str"),
+    "market_indicator_apikey":
+        ConfigVar(key="market_indicator_apikey",
+                  prompt="What is your indicator API key? >>> ",
+                  required_if=lambda: pure_market_making_config_map.get("market_indicator_enabled").value is True,
+                  type_str="str"),
+    "market_indicator_refresh_time":
+        ConfigVar(key="market_indicator_refresh_time",
+                  prompt="What is your indicator refresh time >>> ",
+                  required_if=lambda: pure_market_making_config_map.get("market_indicator_enabled").value is True,
+                  type_str="float",
+                  validator=lambda v: validate_decimal(v, min_value=0, inclusive=False),
+                  default=60),
+    "market_indicator_reduce_orders_to_pct":
+        ConfigVar(key="market_indicator_reduce_orders_to_pct",
+                  prompt="What size in percentage would you like to reduce orders to based on the trend?"
+                         "(Enter 0 to stop orders or 1 to indicate 1%) >>> ",
+                  required_if=lambda: pure_market_making_config_map.get("market_indicator_enabled").value is True,
+                  type_str="decimal",
+                  validator=lambda v: validate_decimal(v, 0, 100, inclusive=True),
+                  default=Decimal("0")),
 }
