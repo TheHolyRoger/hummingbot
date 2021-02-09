@@ -55,16 +55,16 @@ cdef class RandomLoopTrade(StrategyBase):
     def __init__(self,
                  market_infos: List[MarketTradingPairTuple],
                  order_type: str = "limit",
-                 order_price: Optional[Decimal] = None,
-                 order_price_min: Optional[Decimal] = Decimal("0.0"),
-                 order_price_max: Optional[Decimal] = Decimal("0.0"),
+                 order_price: Optional[Decimal] = s_decimal_zero,
+                 order_price_min: Optional[Decimal] = s_decimal_zero,
+                 order_price_max: Optional[Decimal] = s_decimal_zero,
                  cancel_order_wait_time: Optional[float] = 60.0,
                  is_buy: bool = True,
                  ping_pong_enabled: bool = True,
                  time_delay: float = 10.0,
                  order_amount: Decimal = Decimal("1.0"),
-                 order_amount_min: Decimal = Decimal("0.0"),
-                 order_amount_max: Decimal = Decimal("0.0"),
+                 order_amount_min: Decimal = s_decimal_zero,
+                 order_amount_max: Decimal = s_decimal_zero,
                  logging_options: int = OPTION_LOG_ALL,
                  status_report_interval: float = 20):
         """
@@ -322,11 +322,31 @@ cdef class RandomLoopTrade(StrategyBase):
         :param market_info: a market trading pair
         """
         # Pick random order `order_amount` between `order_amount_min` and `order_amount_max`
-        if self._order_amount_min > Decimal('0.0') and self._order_amount_max > Decimal('0.0'):
-            self._order_amount = Decimal(str(random.randrange((self._order_amount_min * (Decimal('10') ** -Decimal(str(self._order_amount_min.as_tuple().exponent)))), (self._order_amount_max * (Decimal('10') ** -Decimal(str(self._order_amount_max.as_tuple().exponent))))))) / (Decimal('10') ** -Decimal(str(self._order_amount_max.as_tuple().exponent)))
+        amt_min = self._order_amount_min
+        amt_max = self._order_amount_max
+        randchk_amt = (amt_min is not None and
+                       amt_min > s_decimal_zero and
+                       amt_max is not None and
+                       amt_max > s_decimal_zero)
+        if randchk_amt:
+            amt_min_as_int = (amt_min * (Decimal('10') ** -Decimal(str(amt_min.as_tuple().exponent))))
+            amt_max_as_int = (amt_max * (Decimal('10') ** -Decimal(str(amt_max.as_tuple().exponent))))
+            amt_rnd_pow = (Decimal('10') ** -Decimal(str(amt_max.as_tuple().exponent)))
+            rand_amt = random.randrange(amt_min_as_int, amt_max_as_int)
+            self._order_amount = Decimal(Decimal(str(rand_amt)) / amt_rnd_pow)
         # Pick random `order_price` between `_order_price_min` and `_order_price_max`
-        if self._order_price is not None and self._order_price_min > Decimal('0.0') and self._order_price_max > Decimal('0.0'):
-            self._order_price = Decimal(str(random.randrange((self._order_price_min * (Decimal('10') ** -Decimal(str(self._order_price_min.as_tuple().exponent)))), (self._order_price_max * (Decimal('10') ** -Decimal(str(self._order_price_max.as_tuple().exponent))))))) / (Decimal('10') ** -Decimal(str(self._order_price_max.as_tuple().exponent)))
+        prc_min = self._order_price_max
+        prc_max = self._order_price_max
+        randchk_prc = (prc_min is not None and
+                       prc_min > s_decimal_zero and
+                       prc_max is not None and
+                       prc_max > s_decimal_zero)
+        if randchk_prc:
+            prc_min_as_int = (prc_min * (Decimal('10') ** -Decimal(str(prc_min.as_tuple().exponent))))
+            prc_max_as_int = (prc_max * (Decimal('10') ** -Decimal(str(prc_max.as_tuple().exponent))))
+            prc_rnd_pow = (Decimal('10') ** -Decimal(str(prc_max.as_tuple().exponent)))
+            rand_prc = random.randrange(prc_min_as_int, prc_max_as_int)
+            self._order_price = Decimal(Decimal(str(rand_prc)) / prc_rnd_pow)
         cdef:
             ExchangeBase market = market_info.market
             object quantized_amount = market.c_quantize_order_amount(market_info.trading_pair, self._order_amount)
@@ -399,7 +419,17 @@ cdef class RandomLoopTrade(StrategyBase):
             ExchangeBase maker_market = market_info.market
             set cancel_order_ids = set()
 
-        if self._place_orders:
+        ready_to_place = ((self._order_price > s_decimal_zero or
+                           (self._order_price_min > s_decimal_zero and
+                            self._order_price_max > s_decimal_zero)) and
+                          (self._order_amount > s_decimal_zero or
+                           (self._order_amount_min > s_decimal_zero and
+                            self._order_amount_max > s_decimal_zero)))
+
+        if not ready_to_place:
+            self.logger().info("Unable to place orders, order_price or order_amount are unset.")
+
+        if self._place_orders and ready_to_place:
             # If current timestamp is greater than the start timestamp + time delay place orders
             if self._current_timestamp > self._start_timestamp + self._time_delay:
 
