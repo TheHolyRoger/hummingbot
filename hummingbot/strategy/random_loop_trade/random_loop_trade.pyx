@@ -327,7 +327,8 @@ cdef class RandomLoopTrade(StrategyBase):
         randchk_amt = (amt_min is not None and
                        amt_min > s_decimal_zero and
                        amt_max is not None and
-                       amt_max > s_decimal_zero)
+                       amt_max > s_decimal_zero and
+                       amt_max > amt_min)
         if randchk_amt:
             amt_min_as_int = (amt_min * (Decimal('10') ** -Decimal(str(amt_min.as_tuple().exponent))))
             amt_max_as_int = (amt_max * (Decimal('10') ** -Decimal(str(amt_max.as_tuple().exponent))))
@@ -335,12 +336,13 @@ cdef class RandomLoopTrade(StrategyBase):
             rand_amt = random.randrange(amt_min_as_int, amt_max_as_int)
             self._order_amount = Decimal(Decimal(str(rand_amt)) / amt_rnd_pow)
         # Pick random `order_price` between `_order_price_min` and `_order_price_max`
-        prc_min = self._order_price_max
+        prc_min = self._order_price_min
         prc_max = self._order_price_max
         randchk_prc = (prc_min is not None and
                        prc_min > s_decimal_zero and
                        prc_max is not None and
-                       prc_max > s_decimal_zero)
+                       prc_max > s_decimal_zero and
+                       prc_max > prc_min)
         if randchk_prc:
             prc_min_as_int = (prc_min * (Decimal('10') ** -Decimal(str(prc_min.as_tuple().exponent))))
             prc_max_as_int = (prc_max * (Decimal('10') ** -Decimal(str(prc_max.as_tuple().exponent))))
