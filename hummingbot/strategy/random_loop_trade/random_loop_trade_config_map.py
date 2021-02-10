@@ -82,16 +82,18 @@ random_loop_trade_config_map = {
                   prompt_on_new=True),
     "ping_pong_enabled":
         ConfigVar(key="ping_pong_enabled",
-                  prompt="Enable Ping Pong (switching between buys and sells)? >>> ",
+                  prompt="Enable Ping Pong (switching between buys and sells - overrides is_buy)? >>> ",
                   type_str="bool",
                   validator=validate_bool,
-                  default=False),
+                  default=False,
+                  prompt_on_new=True),
     "time_delay":
         ConfigVar(key="time_delay",
-                  prompt="How much do you want to wait to place the order (Enter 10 to indicate 10 seconds. "
-                         "Default is 0)? >>> ",
+                  prompt="How much do you want to wait between placing orders (Enter 10 to indicate 10 seconds. "
+                         "Default is 10)? >>> ",
                   type_str="float",
-                  default=0),
+                  default=10,
+                  prompt_on_new=True),
     "order_price":
         ConfigVar(key="order_price",
                   prompt="What is the price of the limit order ? >>> ",
