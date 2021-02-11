@@ -17,12 +17,19 @@ cdef class RandomLoopTrade(StrategyBase):
         double _last_timestamp
         double _start_timestamp
         double _time_delay
+
+        bint _order_pricetype_random
+        bint _order_pricetype_spread
         object _order_price
         object _order_price_min
         object _order_price_max
         object _order_amount
         object _order_amount_min
         object _order_amount_max
+        object _order_spread
+        object _order_spread_min
+        object _order_spread_max
+        object _order_spread_pricetype
 
         dict _tracked_orders
         dict _time_to_cancel

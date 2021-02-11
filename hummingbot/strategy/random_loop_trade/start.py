@@ -18,16 +18,30 @@ def start(self):
         time_delay = random_loop_trade_config_map.get("time_delay").value
         market = random_loop_trade_config_map.get("market").value.lower()
         raw_market_trading_pair = random_loop_trade_config_map.get("market_trading_pair_tuple").value
+        cancel_order_wait_time = random_loop_trade_config_map.get("cancel_order_wait_time").value
+
+        order_pricetype_random = random_loop_trade_config_map.get("order_pricetype_random").value
+        order_pricetype_spread = random_loop_trade_config_map.get("order_pricetype_spread").value
         order_price = None
         order_price_min = None
         order_price_max = None
-        cancel_order_wait_time = None
+        order_spread = None
+        order_spread_min = None
+        order_spread_max = None
+        order_spread_pricetype = random_loop_trade_config_map.get("order_spread_pricetype").value
 
         if order_type == "limit":
-            order_price = random_loop_trade_config_map.get("order_price").value
-            order_price_min = random_loop_trade_config_map.get("order_price_min").value
-            order_price_max = random_loop_trade_config_map.get("order_price_max").value
-            cancel_order_wait_time = random_loop_trade_config_map.get("cancel_order_wait_time").value
+            if not order_pricetype_spread:
+                order_price = random_loop_trade_config_map.get("order_price").value
+                if order_pricetype_random:
+                    order_price_min = random_loop_trade_config_map.get("order_price_min").value
+                    order_price_max = random_loop_trade_config_map.get("order_price_max").value
+            else:
+                order_spread = random_loop_trade_config_map.get("order_spread").value
+
+                if order_pricetype_random:
+                    order_spread_min = random_loop_trade_config_map.get("order_spread_min").value
+                    order_spread_max = random_loop_trade_config_map.get("order_spread_max").value
 
         try:
             trading_pair: str = raw_market_trading_pair
@@ -49,10 +63,16 @@ def start(self):
 
         self.strategy = RandomLoopTrade(market_infos=[MarketTradingPairTuple(*maker_data)],
                                         order_type=order_type,
-                                        order_price=order_price if order_price else None,
-                                        order_price_min=order_price_min if order_price_min else None,
-                                        order_price_max=order_price_max if order_price_max else None,
                                         cancel_order_wait_time=cancel_order_wait_time,
+                                        order_pricetype_random=order_pricetype_random,
+                                        order_pricetype_spread=order_pricetype_spread,
+                                        order_price=order_price,
+                                        order_price_min=order_price_min,
+                                        order_price_max=order_price_max,
+                                        order_spread=order_spread,
+                                        order_spread_min=order_spread_min,
+                                        order_spread_max=order_spread_max,
+                                        order_spread_pricetype=order_spread_pricetype,
                                         is_buy=is_buy,
                                         ping_pong_enabled=ping_pong_enabled,
                                         time_delay=time_delay,
