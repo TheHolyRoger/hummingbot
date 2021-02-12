@@ -145,6 +145,28 @@ def validate_spread_max(value: str):
             return valid_dec
 
 
+def on_validate_order_pricetype_random(value: str):
+    if value == "True":
+        random_loop_trade_config_map["order_price"].value = None
+        random_loop_trade_config_map["order_spread"].value = None
+    else:
+        random_loop_trade_config_map["order_price_min"].value = None
+        random_loop_trade_config_map["order_price_max"].value = None
+        random_loop_trade_config_map["order_spread_min"].value = None
+        random_loop_trade_config_map["order_spread_max"].value = None
+
+
+def on_validate_order_pricetype_spread(value: str):
+    if value == "True":
+        random_loop_trade_config_map["order_price"].value = None
+        random_loop_trade_config_map["order_price_min"].value = None
+        random_loop_trade_config_map["order_price_max"].value = None
+    else:
+        random_loop_trade_config_map["order_spread"].value = None
+        random_loop_trade_config_map["order_spread_min"].value = None
+        random_loop_trade_config_map["order_spread_max"].value = None
+
+
 random_loop_trade_config_map = {
     "strategy":
         ConfigVar(key="strategy",
@@ -219,6 +241,7 @@ random_loop_trade_config_map = {
                   required_if=lambda: (random_loop_trade_config_map.get("order_type").value == "limit"),
                   type_str="bool",
                   validator=validate_bool,
+                  on_validated=on_validate_order_pricetype_random,
                   default=False,
                   prompt_on_new=True),
     "order_pricetype_spread":
@@ -227,6 +250,7 @@ random_loop_trade_config_map = {
                   required_if=lambda: (random_loop_trade_config_map.get("order_type").value == "limit"),
                   type_str="bool",
                   validator=validate_bool,
+                  on_validated=on_validate_order_pricetype_spread,
                   default=False,
                   prompt_on_new=True),
     "order_price":

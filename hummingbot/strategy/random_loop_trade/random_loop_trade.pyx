@@ -331,7 +331,6 @@ cdef class RandomLoopTrade(StrategyBase):
             bint spread_price_enabled = self._order_pricetype_spread
             object size_min = self._order_amount_min
             object size_max = self._order_amount_max
-            object order_size = self._order_amount
             object price_min = self._order_price_min
             object price_max = self._order_price_max
             object order_price = self._order_price
@@ -350,11 +349,13 @@ cdef class RandomLoopTrade(StrategyBase):
                        size_max > s_decimal_zero and
                        size_max > size_min)
         if randchk_amt:
-            size_min_as_int = (size_min * (Decimal('10') ** -Decimal(str(size_min.as_tuple().exponent))))
-            size_max_as_int = (size_max * (Decimal('10') ** -Decimal(str(size_max.as_tuple().exponent))))
-            rnd_pow_amt = (Decimal('10') ** -Decimal(str(size_max.as_tuple().exponent)))
+            rnd_pow_amt = max((Decimal('10') ** -Decimal(str(size_min.as_tuple().exponent))),
+                              (Decimal('10') ** -Decimal(str(size_max.as_tuple().exponent))))
+            size_min_as_int = (size_min * rnd_pow_amt)
+            size_max_as_int = (size_max * rnd_pow_amt)
             rand_amt_as_int = random.randrange(size_min_as_int, size_max_as_int)
-            order_size = Decimal(Decimal(str(rand_amt_as_int)) / rnd_pow_amt)
+            self._order_amount = Decimal(Decimal(str(rand_amt_as_int)) / rnd_pow_amt)
+
         # Calculate spread price
         if spread_price_enabled:
             reference_price = self.get_price()
@@ -379,14 +380,15 @@ cdef class RandomLoopTrade(StrategyBase):
                        price_max > price_min)
         # Pick random `order_price` between min and max values
         if randchk_prc:
-            prc_min_as_int = (price_min * (Decimal('10') ** -Decimal(str(price_min.as_tuple().exponent))))
-            prc_max_as_int = (price_max * (Decimal('10') ** -Decimal(str(price_max.as_tuple().exponent))))
-            prc_rnd_pow = (Decimal('10') ** -Decimal(str(price_max.as_tuple().exponent)))
+            prc_rnd_pow = max((Decimal('10') ** -Decimal(str(price_min.as_tuple().exponent))),
+                              (Decimal('10') ** -Decimal(str(price_max.as_tuple().exponent))))
+            prc_min_as_int = (price_min * prc_rnd_pow)
+            prc_max_as_int = (price_max * prc_rnd_pow)
             rand_prc = random.randrange(prc_min_as_int, prc_max_as_int)
             order_price = Decimal(Decimal(str(rand_prc)) / prc_rnd_pow)
 
         # Set Amount
-        quantized_amount = market.c_quantize_order_amount(market_info.trading_pair, order_size)
+        quantized_amount = market.c_quantize_order_amount(market_info.trading_pair, self._order_amount)
 
         self.logger().info(f"Checking to see if the user has enough balance to place orders")
         if self.c_has_enough_balance(market_info):
@@ -396,11 +398,11 @@ cdef class RandomLoopTrade(StrategyBase):
                     order_id = self.c_buy_with_specific_market(market_info,
                                                                amount=quantized_amount)
 
-                    self.logger().info("Market buy order has been executed")
+                    self.logger().info(f"Market buy order of {quantized_amount} has been executed.")
                 else:
                     order_id = self.c_sell_with_specific_market(market_info,
                                                                 amount=quantized_amount)
-                    self.logger().info("Market sell order has been executed")
+                    self.logger().info(f"Market sell order of {quantized_amount} has been executed.")
             else:
                 quantized_price = market.c_quantize_order_price(market_info.trading_pair, order_price)
                 if self._is_buy:
@@ -408,14 +410,14 @@ cdef class RandomLoopTrade(StrategyBase):
                                                                amount=quantized_amount,
                                                                order_type=OrderType.LIMIT,
                                                                price=quantized_price)
-                    self.logger().info("Limit buy order has been placed")
+                    self.logger().info(f"Limit buy order of {quantized_amount} has been placed @ {quantized_price}")
 
                 else:
                     order_id = self.c_sell_with_specific_market(market_info,
                                                                 amount=quantized_amount,
                                                                 order_type=OrderType.LIMIT,
                                                                 price=quantized_price)
-                    self.logger().info("Limit sell order has been placed")
+                    self.logger().info(f"Limit sell order of {quantized_amount} has been placed @ {quantized_price}")
 
                 self._time_to_cancel[order_id] = self._current_timestamp + self._cancel_order_wait_time
         else:
@@ -448,15 +450,6 @@ cdef class RandomLoopTrade(StrategyBase):
         cdef:
             ExchangeBase maker_market = market_info.market
             set cancel_order_ids = set()
-
-        # ready_to_place = ((self._order_price > s_decimal_zero or
-        #                    (self._order_price_min > s_decimal_zero and
-        #                     self._order_price_max > s_decimal_zero)) and
-        #                   (self._order_amount > s_decimal_zero or
-        #                    (self._order_amount_min > s_decimal_zero and
-        #                     self._order_amount_max > s_decimal_zero)))
-        # if not ready_to_place:
-        #     self.logger().info("Unable to place orders, order_price or order_amount are unset.")
 
         # if self._place_orders and ready_to_place:
         if self._place_orders:

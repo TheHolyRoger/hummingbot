@@ -2,6 +2,7 @@ from typing import (
     List,
     Tuple,
 )
+from decimal import Decimal
 from hummingbot.strategy.market_trading_pair_tuple import MarketTradingPairTuple
 from hummingbot.strategy.random_loop_trade import RandomLoopTrade
 from hummingbot.strategy.random_loop_trade.random_loop_trade_config_map import random_loop_trade_config_map
@@ -40,8 +41,8 @@ def start(self):
                 order_spread = random_loop_trade_config_map.get("order_spread").value
 
                 if order_pricetype_random:
-                    order_spread_min = random_loop_trade_config_map.get("order_spread_min").value
-                    order_spread_max = random_loop_trade_config_map.get("order_spread_max").value
+                    order_spread_min = random_loop_trade_config_map.get("order_spread_min").value / Decimal('100')
+                    order_spread_max = random_loop_trade_config_map.get("order_spread_max").value / Decimal('100')
 
         try:
             trading_pair: str = raw_market_trading_pair
