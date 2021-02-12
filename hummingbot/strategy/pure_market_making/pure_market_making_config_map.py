@@ -368,6 +368,13 @@ pure_market_making_config_map = {
                   type_str="decimal",
                   validator=lambda v: validate_decimal(v, -1, 10000, True),
                   default=Decimal(4)),
+    "track_tradehistory_trades":
+        ConfigVar(key="track_tradehistory_trades",
+                  prompt="How many trades do you want to consider for tracking within the window? >>> ",
+                  required_if=lambda: pure_market_making_config_map.get("track_tradehistory_enabled").value is True,
+                  type_str="int",
+                  validator=lambda v: validate_int(v, min_value=0, inclusive=True),
+                  default=1),
     "track_tradehistory_allowed_loss":
         ConfigVar(key="track_tradehistory_allowed_loss",
                   prompt="What is your accepted loss? (Enter 20 to indicate 20%) >>> ",

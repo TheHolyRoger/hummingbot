@@ -94,6 +94,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                  take_if_crossed: bool = False,
                  track_tradehistory_enabled: bool = False,
                  track_tradehistory_hours: Decimal = Decimal(4),
+                 track_tradehistory_trades: int = 1,
                  track_tradehistory_allowed_loss: Decimal = Decimal("0.2"),
                  track_tradehistory_profit_wanted: Decimal = Decimal("0.2"),
                  track_tradehistory_ownside_enabled: bool = False,
@@ -148,6 +149,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         self._take_if_crossed = take_if_crossed
         self._track_tradehistory_enabled = track_tradehistory_enabled
         self._track_tradehistory_hours = track_tradehistory_hours
+        self._track_tradehistory_trades = track_tradehistory_trades
         self._track_tradehistory_allowed_loss = track_tradehistory_allowed_loss
         self._track_tradehistory_profit_wanted = track_tradehistory_profit_wanted
         self._track_tradehistory_ownside_enabled = track_tradehistory_ownside_enabled
@@ -449,6 +451,14 @@ cdef class PureMarketMakingStrategy(StrategyBase):
     @track_tradehistory_hours.setter
     def track_tradehistory_hours(self, value: Decimal):
         self._track_tradehistory_hours = value
+
+    @property
+    def track_tradehistory_trades(self) -> int:
+        return self._track_tradehistory_trades
+
+    @track_tradehistory_trades.setter
+    def track_tradehistory_trades(self, value: int):
+        self._track_tradehistory_trades = value
 
     @property
     def track_tradehistory_allowed_loss(self) -> Decimal:
@@ -1039,6 +1049,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
             int recent_sells = 0
             bint careful_trades = self.track_tradehistory_careful_enabled
             int careful_trades_limit = self.track_tradehistory_careful_limittrades
+            int recent_trades_limit = self.track_tradehistory_trades
             object buy_pr_thresh = s_decimal_zero
             object highest_buy_price = s_decimal_zero
             object lowest_buy_price = s_decimal_zero
@@ -1053,25 +1064,37 @@ cdef class PureMarketMakingStrategy(StrategyBase):
             object sell_profit = self.track_tradehistory_profit_wanted + Decimal('1')
             list trades = self.trades
             list trades_history = self.trades_history
+            object filtered_trades = {}
 
         all_trades = trades + trades_history if len(trades) < 1000 else trades
         for trade in all_trades:
             trade_ts = int(trade.timestamp) if type(trade) == Trade else int(trade.timestamp / 1000)
             trade_side = trade.side.name if type(trade) == Trade else trade.trade_type
+            if trade_ts > accept_time:
+                if trade_side == TradeType.SELL.name:
+                    filtered_trades[trade_ts] = trade
+                if trade_side == TradeType.BUY.name:
+                    filtered_trades[trade_ts] = trade
+
+        for trade_ts in sorted(list(filtered_trades.keys()), reverse=True):
+            trade = filtered_trades[trade_ts]
+            trade_side = trade.side.name if type(trade) == Trade else trade.trade_type
             trade_price = Decimal(str(trade.price))
             if trade_ts > accept_time:
                 if trade_side == TradeType.SELL.name:
                     recent_sells += 1
-                    if lowest_sell_price == s_decimal_zero or trade_price < lowest_sell_price:
-                        lowest_sell_price = trade_price
-                    if highest_sell_price == s_decimal_zero or trade_price > highest_sell_price:
-                        highest_sell_price = trade_price
+                    if recent_sells <= recent_trades_limit:
+                        if lowest_sell_price == s_decimal_zero or trade_price < lowest_sell_price:
+                            lowest_sell_price = trade_price
+                        if highest_sell_price == s_decimal_zero or trade_price > highest_sell_price:
+                            highest_sell_price = trade_price
                 if trade_side == TradeType.BUY.name:
                     recent_buys += 1
-                    if lowest_buy_price == s_decimal_zero or trade_price < lowest_buy_price:
-                        lowest_buy_price = trade_price
-                    if highest_buy_price == s_decimal_zero or trade_price > highest_buy_price:
-                        highest_buy_price = trade_price
+                    if recent_buys <= recent_trades_limit:
+                        if lowest_buy_price == s_decimal_zero or trade_price < lowest_buy_price:
+                            lowest_buy_price = trade_price
+                        if highest_buy_price == s_decimal_zero or trade_price > highest_buy_price:
+                            highest_buy_price = trade_price
 
         if lowest_sell_price != s_decimal_zero:
             buy_pr_thresh = Decimal(lowest_sell_price * buy_margin)

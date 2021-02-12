@@ -115,6 +115,7 @@ take_if_crossed: null
 #Profit and Loss Tracking
 track_tradehistory_enabled: null
 track_tradehistory_hours: null
+track_tradehistory_trades: null
 track_tradehistory_allowed_loss: null
 track_tradehistory_profit_wanted: null
 track_tradehistory_ownside_enabled: null

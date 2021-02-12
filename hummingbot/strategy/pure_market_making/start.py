@@ -76,6 +76,7 @@ def start(self):
         take_if_crossed = c_map.get("take_if_crossed").value
         track_tradehistory_enabled = c_map.get("track_tradehistory_enabled").value
         track_tradehistory_hours = c_map.get("track_tradehistory_hours").value
+        track_tradehistory_trades = c_map.get("track_tradehistory_trades").value
         track_tradehistory_allowed_loss = c_map.get("track_tradehistory_allowed_loss").value / Decimal('100')
         track_tradehistory_profit_wanted = c_map.get("track_tradehistory_profit_wanted").value / Decimal('100')
         track_tradehistory_ownside_enabled = c_map.get("track_tradehistory_ownside_enabled").value
@@ -124,6 +125,7 @@ def start(self):
             take_if_crossed=take_if_crossed,
             track_tradehistory_enabled=track_tradehistory_enabled,
             track_tradehistory_hours=track_tradehistory_hours,
+            track_tradehistory_trades=track_tradehistory_trades,
             track_tradehistory_allowed_loss=track_tradehistory_allowed_loss,
             track_tradehistory_profit_wanted=track_tradehistory_profit_wanted,
             track_tradehistory_ownside_enabled=track_tradehistory_ownside_enabled,

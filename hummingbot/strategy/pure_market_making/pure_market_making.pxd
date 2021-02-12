@@ -38,6 +38,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         bint _take_if_crossed
         bint _track_tradehistory_enabled
         object _track_tradehistory_hours
+        int _track_tradehistory_trades
         object _track_tradehistory_allowed_loss
         object _track_tradehistory_profit_wanted
         bint _track_tradehistory_ownside_enabled
