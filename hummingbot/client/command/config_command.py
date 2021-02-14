@@ -37,7 +37,15 @@ no_restart_pmm_keys_in_percentage = ["bid_spread", "ask_spread", "order_level_sp
 pmm_k_append_perc = ["track_tradehistory_allowed_loss", "track_tradehistory_profit_wanted", "track_tradehistory_ownside_allowedloss", "market_indicator_reduce_orders_to_pct"]
 no_restart_pmm_keys_in_percentage = no_restart_pmm_keys_in_percentage + pmm_k_append_perc
 no_restart_pmm_keys = ["order_amount", "order_levels", "filled_order_delay", "inventory_skew_enabled", "inventory_range_multiplier"]
-pmm_k_append = ["track_tradehistory_enabled", "track_tradehistory_hours", "track_tradehistory_ownside_enabled", "track_tradehistory_careful_enabled", "track_tradehistory_careful_limittrades"]
+pmm_k_append = [
+    "track_tradehistory_enabled",
+    "track_tradehistory_hours",
+    "track_tradehistory_ownside_enabled",
+    "track_tradehistory_careful_enabled",
+    "track_tradehistory_careful_limittrades",
+    "track_tradehistory_initial_max_buy",
+    "track_tradehistory_initial_min_sell",
+]
 no_restart_pmm_keys = no_restart_pmm_keys + pmm_k_append
 global_configs_to_display = ["0x_active_cancels",
                              "autofill_import",

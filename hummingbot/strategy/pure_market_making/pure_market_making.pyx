@@ -100,6 +100,8 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                  track_tradehistory_ownside_allowedloss: Decimal = Decimal("0.2"),
                  track_tradehistory_careful_enabled: bool = False,
                  track_tradehistory_careful_limittrades: int = 3,
+                 track_tradehistory_initial_max_buy: Decimal = s_decimal_zero,
+                 track_tradehistory_initial_min_sell: Decimal = s_decimal_zero,
                  price_ceiling: Decimal = s_decimal_neg_one,
                  price_floor: Decimal = s_decimal_neg_one,
                  ping_pong_enabled: bool = False,
@@ -152,6 +154,8 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         self._track_tradehistory_ownside_allowedloss = track_tradehistory_ownside_allowedloss
         self._track_tradehistory_careful_enabled = track_tradehistory_careful_enabled
         self._track_tradehistory_careful_limittrades = track_tradehistory_careful_limittrades
+        self._track_tradehistory_initial_max_buy = track_tradehistory_initial_max_buy
+        self._track_tradehistory_initial_min_sell = track_tradehistory_initial_min_sell
         self._price_ceiling = price_ceiling
         self._price_floor = price_floor
         self._ping_pong_enabled = ping_pong_enabled
@@ -493,6 +497,22 @@ cdef class PureMarketMakingStrategy(StrategyBase):
     @track_tradehistory_careful_limittrades.setter
     def track_tradehistory_careful_limittrades(self, value: int):
         self._track_tradehistory_careful_limittrades = value
+
+    @property
+    def track_tradehistory_initial_max_buy(self) -> Decimal:
+        return self._track_tradehistory_initial_max_buy
+
+    @track_tradehistory_initial_max_buy.setter
+    def track_tradehistory_initial_max_buy(self, value: Decimal):
+        self._track_tradehistory_initial_max_buy = value
+
+    @property
+    def track_tradehistory_initial_min_sell(self) -> Decimal:
+        return self._track_tradehistory_initial_min_sell
+
+    @track_tradehistory_initial_min_sell.setter
+    def track_tradehistory_initial_min_sell(self, value: Decimal):
+        self._track_tradehistory_initial_min_sell = value
 
     @property
     def markets_recorder(self) -> MarketsRecorder:
@@ -1055,8 +1075,14 @@ cdef class PureMarketMakingStrategy(StrategyBase):
 
         if lowest_sell_price != s_decimal_zero:
             buy_pr_thresh = Decimal(lowest_sell_price * buy_margin)
+            self.track_tradehistory_initial_max_buy = s_decimal_zero
+        elif self.track_tradehistory_initial_max_buy > s_decimal_zero:
+            buy_pr_thresh = self.track_tradehistory_initial_max_buy
         if highest_buy_price != s_decimal_zero:
             sell_pr_thresh = Decimal(highest_buy_price * sell_margin)
+            self.track_tradehistory_initial_min_sell = s_decimal_zero
+        elif self.track_tradehistory_initial_min_sell > s_decimal_zero:
+            sell_pr_thresh = self.track_tradehistory_initial_min_sell
 
         if self.track_tradehistory_ownside_enabled:
             if lowest_buy_price != s_decimal_zero and (lowest_sell_price == s_decimal_zero or

@@ -82,6 +82,8 @@ def start(self):
         track_tradehistory_ownside_allowedloss = c_map.get("track_tradehistory_ownside_allowedloss").value / Decimal('100')
         track_tradehistory_careful_enabled = c_map.get("track_tradehistory_careful_enabled").value
         track_tradehistory_careful_limittrades = c_map.get("track_tradehistory_careful_limittrades").value
+        track_tradehistory_initial_max_buy = c_map.get("track_tradehistory_initial_max_buy").value
+        track_tradehistory_initial_min_sell = c_map.get("track_tradehistory_initial_min_sell").value
 
         market_indicator_enabled = c_map.get("market_indicator_enabled").value
         market_indicator_delegate = None
@@ -128,6 +130,8 @@ def start(self):
             track_tradehistory_ownside_allowedloss=track_tradehistory_ownside_allowedloss,
             track_tradehistory_careful_enabled=track_tradehistory_careful_enabled,
             track_tradehistory_careful_limittrades=track_tradehistory_careful_limittrades,
+            track_tradehistory_initial_max_buy=track_tradehistory_initial_max_buy,
+            track_tradehistory_initial_min_sell=track_tradehistory_initial_min_sell,
             price_ceiling=price_ceiling,
             price_floor=price_floor,
             ping_pong_enabled=ping_pong_enabled,

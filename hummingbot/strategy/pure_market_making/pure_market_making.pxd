@@ -44,6 +44,8 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         object _track_tradehistory_ownside_allowedloss
         bint _track_tradehistory_careful_enabled
         int _track_tradehistory_careful_limittrades
+        object _track_tradehistory_initial_max_buy
+        object _track_tradehistory_initial_min_sell
         object _price_ceiling
         object _price_floor
         bint _ping_pong_enabled

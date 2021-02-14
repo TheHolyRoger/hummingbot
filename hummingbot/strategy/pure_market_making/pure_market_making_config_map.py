@@ -409,6 +409,20 @@ pure_market_making_config_map = {
                   type_str="int",
                   validator=lambda v: validate_int(v, min_value=0, inclusive=True),
                   default=3),
+    "track_tradehistory_initial_max_buy":
+        ConfigVar(key="track_tradehistory_initial_max_buy",
+                  prompt="Enter the initial maximum buy price before any trades have been made "
+                         "(Enter 0 to deactivate this feature) >>> ",
+                  type_str="decimal",
+                  default=Decimal("0"),
+                  validator=lambda v: validate_decimal(v, min_value=0, inclusive=True)),
+    "track_tradehistory_initial_min_sell":
+        ConfigVar(key="track_tradehistory_initial_min_sell",
+                  prompt="Enter the initial maximum buy price before any trades have been made "
+                         "(Enter 0 to deactivate this feature) >>> ",
+                  type_str="decimal",
+                  default=Decimal("0"),
+                  validator=lambda v: validate_decimal(v, min_value=0, inclusive=True)),
     "market_indicator_enabled":
         ConfigVar(key="market_indicator_enabled",
                   prompt="Enable Market trend indicator tracking with external API? (Yes/No) >>> ",
