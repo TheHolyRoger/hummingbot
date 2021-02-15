@@ -130,6 +130,7 @@ market_indicator_url: null
 market_indicator_apikey: null
 market_indicator_refresh_time: null
 market_indicator_reduce_orders_to_pct: null
+market_indicator_allow_profitable: null
 
 # Use user provided orders to directly override the orders placed by order_amount and order_level_parameter
 # This is an advanced feature and user is expected to directly edit this field in config file

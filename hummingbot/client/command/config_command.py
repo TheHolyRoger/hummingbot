@@ -51,6 +51,7 @@ pmm_k_append = [
     "track_tradehistory_careful_limittrades",
     "track_tradehistory_initial_max_buy",
     "track_tradehistory_initial_min_sell",
+    "market_indicator_allow_profitable",
 ]
 no_restart_pmm_keys = no_restart_pmm_keys + pmm_k_append
 global_configs_to_display = ["0x_active_cancels",

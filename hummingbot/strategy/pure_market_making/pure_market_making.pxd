@@ -34,6 +34,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         object _inventory_cost_price_delegate
         object _market_indicator_delegate
         object _market_indicator_reduce_orders_to_pct
+        object _market_indicator_allow_profitable
         object _price_type
         bint _take_if_crossed
         bint _track_tradehistory_enabled
@@ -47,6 +48,8 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         int _track_tradehistory_careful_limittrades
         object _track_tradehistory_initial_max_buy
         object _track_tradehistory_initial_min_sell
+        object _track_tradehistory_pricethresh_buy
+        object _track_tradehistory_pricethresh_sell
         object _price_ceiling
         object _price_floor
         bint _ping_pong_enabled

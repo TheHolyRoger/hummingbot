@@ -461,4 +461,11 @@ pure_market_making_config_map = {
                   type_str="decimal",
                   validator=lambda v: validate_decimal(v, 0, 100, inclusive=True),
                   default=Decimal("0")),
+    "market_indicator_allow_profitable":
+        ConfigVar(key="market_indicator_allow_profitable",
+                  prompt="Allow profitable trades even with bad signal? (Yes/No) >>> ",
+                  required_if=lambda: pure_market_making_config_map.get("market_indicator_enabled").value is True,
+                  type_str="bool",
+                  validator=validate_bool,
+                  default=False),
 }

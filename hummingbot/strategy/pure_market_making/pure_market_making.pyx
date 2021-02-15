@@ -90,6 +90,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                  inventory_cost_price_delegate: InventoryCostPriceDelegate = None,
                  market_indicator_delegate: MarketIndicatorDelegate = None,
                  market_indicator_reduce_orders_to_pct: Decimal = s_decimal_zero,
+                 market_indicator_allow_profitable: bool = False,
                  price_type: str = "mid_price",
                  take_if_crossed: bool = False,
                  track_tradehistory_enabled: bool = False,
@@ -145,6 +146,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         self._inventory_cost_price_delegate = inventory_cost_price_delegate
         self._market_indicator_delegate = market_indicator_delegate
         self._market_indicator_reduce_orders_to_pct = market_indicator_reduce_orders_to_pct
+        self._market_indicator_allow_profitable = market_indicator_allow_profitable
         self._price_type = self.get_price_type(price_type)
         self._take_if_crossed = take_if_crossed
         self._track_tradehistory_enabled = track_tradehistory_enabled
@@ -179,6 +181,8 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         self._last_timestamp = 0
         self._status_report_interval = status_report_interval
         self._last_own_trade_price = Decimal('nan')
+        self._track_tradehistory_pricethresh_buy = s_decimal_zero
+        self._track_tradehistory_pricethresh_sell = s_decimal_zero
 
         self.c_add_markets([market_info.market])
 
@@ -525,6 +529,22 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         self._track_tradehistory_initial_min_sell = value
 
     @property
+    def track_tradehistory_pricethresh_buy(self) -> Decimal:
+        return self._track_tradehistory_pricethresh_buy
+
+    @track_tradehistory_pricethresh_buy.setter
+    def track_tradehistory_pricethresh_buy(self, value: Decimal):
+        self._track_tradehistory_pricethresh_buy = value
+
+    @property
+    def track_tradehistory_pricethresh_sell(self) -> Decimal:
+        return self._track_tradehistory_pricethresh_sell
+
+    @track_tradehistory_pricethresh_sell.setter
+    def track_tradehistory_pricethresh_sell(self, value: Decimal):
+        self._track_tradehistory_pricethresh_sell = value
+
+    @property
     def markets_recorder(self) -> MarketsRecorder:
         from hummingbot.client.hummingbot_application import HummingbotApplication
         return HummingbotApplication.main_application().markets_recorder
@@ -578,6 +598,14 @@ cdef class PureMarketMakingStrategy(StrategyBase):
     @market_indicator_reduce_orders_to_pct.setter
     def market_indicator_reduce_orders_to_pct(self, value: Decimal):
         self._market_indicator_reduce_orders_to_pct = value
+
+    @property
+    def market_indicator_allow_profitable(self) -> bool:
+        return self._market_indicator_allow_profitable
+
+    @market_indicator_allow_profitable.setter
+    def market_indicator_allow_profitable(self, value: bool):
+        self._market_indicator_allow_profitable = value
 
     @property
     def order_tracker(self):
@@ -1050,10 +1078,8 @@ cdef class PureMarketMakingStrategy(StrategyBase):
             bint careful_trades = self.track_tradehistory_careful_enabled
             int careful_trades_limit = self.track_tradehistory_careful_limittrades
             int recent_trades_limit = self.track_tradehistory_trades
-            object buy_pr_thresh = s_decimal_zero
             object highest_buy_price = s_decimal_zero
             object lowest_buy_price = s_decimal_zero
-            object sell_pr_thresh = s_decimal_zero
             object highest_sell_price = s_decimal_zero
             object lowest_sell_price = s_decimal_zero
             object buy_margin = self.track_tradehistory_allowed_loss + Decimal('1')
@@ -1065,6 +1091,9 @@ cdef class PureMarketMakingStrategy(StrategyBase):
             list trades = self.trades
             list trades_history = self.trades_history
             object filtered_trades = {}
+
+        self.track_tradehistory_pricethresh_buy = s_decimal_zero
+        self.track_tradehistory_pricethresh_sell = s_decimal_zero
 
         all_trades = trades + trades_history if len(trades) < 1000 else trades
         for trade in all_trades:
@@ -1097,30 +1126,38 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                             highest_buy_price = trade_price
 
         if lowest_sell_price != s_decimal_zero:
-            buy_pr_thresh = Decimal(lowest_sell_price * buy_margin)
+            self.track_tradehistory_pricethresh_buy = Decimal(lowest_sell_price * buy_margin)
             self.track_tradehistory_initial_max_buy = s_decimal_zero
         elif self.track_tradehistory_initial_max_buy > s_decimal_zero:
-            buy_pr_thresh = self.track_tradehistory_initial_max_buy
+            self.track_tradehistory_pricethresh_buy = self.track_tradehistory_initial_max_buy
+
         if highest_buy_price != s_decimal_zero:
-            sell_pr_thresh = Decimal(highest_buy_price * sell_margin)
+            self.track_tradehistory_pricethresh_sell = Decimal(highest_buy_price * sell_margin)
             self.track_tradehistory_initial_min_sell = s_decimal_zero
         elif self.track_tradehistory_initial_min_sell > s_decimal_zero:
-            sell_pr_thresh = self.track_tradehistory_initial_min_sell
+            self.track_tradehistory_pricethresh_sell = self.track_tradehistory_initial_min_sell
 
         if self.track_tradehistory_ownside_enabled:
-            if lowest_buy_price != s_decimal_zero and (lowest_sell_price == s_decimal_zero or
-                                                       (lowest_buy_price * buy_margin_on_self) < buy_pr_thresh):
-                buy_pr_thresh = Decimal(lowest_buy_price * buy_margin_on_self)
-            if highest_sell_price != s_decimal_zero and (highest_buy_price == s_decimal_zero or
-                                                         (highest_sell_price * sell_margin_on_self) > sell_pr_thresh):
-                sell_pr_thresh = Decimal(highest_sell_price * sell_margin_on_self)
+            chk_ownside_buy = (lowest_buy_price != s_decimal_zero and
+                               self.track_tradehistory_initial_max_buy == s_decimal_zero and
+                               (lowest_sell_price == s_decimal_zero or
+                                (lowest_buy_price * buy_margin_on_self) < self.track_tradehistory_pricethresh_buy))
+            if chk_ownside_buy:
+                self.track_tradehistory_pricethresh_buy = Decimal(lowest_buy_price * buy_margin_on_self)
+
+            chk_ownside_sell = (highest_sell_price != s_decimal_zero and
+                                self.track_tradehistory_initial_min_sell == s_decimal_zero and
+                                (highest_buy_price == s_decimal_zero or
+                                 (highest_sell_price * sell_margin_on_self) > self.track_tradehistory_pricethresh_sell))
+            if chk_ownside_sell:
+                self.track_tradehistory_pricethresh_sell = Decimal(highest_sell_price * sell_margin_on_self)
 
         for buy in proposal.buys:
-            if buy.price > buy_pr_thresh and buy_pr_thresh != s_decimal_zero:
+            if buy.price > self.track_tradehistory_pricethresh_buy and self.track_tradehistory_pricethresh_buy != s_decimal_zero:
                 buy_fee = market.c_get_fee(self.base_asset, self.quote_asset, OrderType.LIMIT, TradeType.BUY,
                                            buy.size, buy.price)
                 quote_amount = Decimal((buy.size * buy.price) * (Decimal('1') - buy_fee.percent))
-                buy.price = Decimal((buy_pr_thresh - (self.get_price() - buy.price)) * buy_profit)
+                buy.price = Decimal((self.track_tradehistory_pricethresh_buy - (self.get_price() - buy.price)) * buy_profit)
                 adjusted_amount = quote_amount / (buy.price)
                 adjusted_amount = market.c_quantize_order_amount(self.trading_pair, adjusted_amount)
                 buy.size = adjusted_amount
@@ -1130,8 +1167,8 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         proposal.buys = [o for o in proposal.buys if o.size > 0]
 
         for sell in proposal.sells:
-            if sell.price < sell_pr_thresh and sell_pr_thresh != s_decimal_zero:
-                sell.price = Decimal((sell_pr_thresh + (sell.price - self.get_price())) * sell_profit)
+            if sell.price < self.track_tradehistory_pricethresh_sell and self.track_tradehistory_pricethresh_sell != s_decimal_zero:
+                sell.price = Decimal((self.track_tradehistory_pricethresh_sell + (sell.price - self.get_price())) * sell_profit)
             elif careful_trades and recent_buys < 1 and recent_sells >= careful_trades_limit:
                 sell.size = s_decimal_zero
 
@@ -1145,19 +1182,22 @@ cdef class PureMarketMakingStrategy(StrategyBase):
             object indicator_orders_pct = self._market_indicator_reduce_orders_to_pct
             bint market_trend_up
             bint market_trend_down
+            bint allow_profitable = self._market_indicator_allow_profitable
 
         market_trend_up = indicator.c_trend_is_up()
         market_trend_down = indicator.c_trend_is_down()
 
-        for buy in proposal.buys:
-            if not market_trend_up:
-                buy.size = buy.size * indicator_orders_pct
+        if not allow_profitable or self.track_tradehistory_pricethresh_buy == s_decimal_zero:
+            for buy in proposal.buys:
+                if not market_trend_up:
+                    buy.size = buy.size * indicator_orders_pct
 
         proposal.buys = [o for o in proposal.buys if o.size > 0]
 
-        for sell in proposal.sells:
-            if not market_trend_down:
-                sell.size = sell.size * indicator_orders_pct
+        if not allow_profitable or self.track_tradehistory_pricethresh_sell == s_decimal_zero:
+            for sell in proposal.sells:
+                if not market_trend_down:
+                    sell.size = sell.size * indicator_orders_pct
 
         proposal.sells = [o for o in proposal.sells if o.size > 0]
     # TREND TRACKER
