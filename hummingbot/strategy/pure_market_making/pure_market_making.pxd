@@ -37,19 +37,20 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         object _market_indicator_allow_profitable
         object _price_type
         bint _take_if_crossed
-        bint _track_tradehistory_enabled
-        object _track_tradehistory_hours
-        int _track_tradehistory_trades
-        object _track_tradehistory_allowed_loss
-        object _track_tradehistory_profit_wanted
-        bint _track_tradehistory_ownside_enabled
-        object _track_tradehistory_ownside_allowedloss
-        bint _track_tradehistory_careful_enabled
-        int _track_tradehistory_careful_limittrades
-        object _track_tradehistory_initial_max_buy
-        object _track_tradehistory_initial_min_sell
-        object _track_tradehistory_pricethresh_buy
-        object _track_tradehistory_pricethresh_sell
+        bint _trade_gain_enabled
+        object _trade_gain_hours
+        int _trade_gain_trades
+        object _trade_gain_allowed_loss
+        object _trade_gain_profit_wanted
+        bint _trade_gain_ownside_enabled
+        object _trade_gain_ownside_allowedloss
+        bint _trade_gain_careful_enabled
+        int _trade_gain_careful_limittrades
+        object _trade_gain_careful_hours
+        object _trade_gain_initial_max_buy
+        object _trade_gain_initial_min_sell
+        object _trade_gain_pricethresh_buy
+        object _trade_gain_pricethresh_sell
         object _price_ceiling
         object _price_floor
         bint _ping_pong_enabled

@@ -35,22 +35,23 @@ if TYPE_CHECKING:
 
 no_restart_pmm_keys_in_percentage = ["bid_spread", "ask_spread", "order_level_spread", "inventory_target_base_pct"]
 pmm_k_append_perc = [
-    "track_tradehistory_allowed_loss",
-    "track_tradehistory_profit_wanted",
-    "track_tradehistory_ownside_allowedloss",
+    "trade_gain_allowed_loss",
+    "trade_gain_profit_wanted",
+    "trade_gain_ownside_allowedloss",
     "market_indicator_reduce_orders_to_pct",
 ]
 no_restart_pmm_keys_in_percentage = no_restart_pmm_keys_in_percentage + pmm_k_append_perc
 no_restart_pmm_keys = ["order_amount", "order_levels", "filled_order_delay", "inventory_skew_enabled", "inventory_range_multiplier"]
 pmm_k_append = [
-    "track_tradehistory_enabled",
-    "track_tradehistory_hours",
-    "track_tradehistory_trades",
-    "track_tradehistory_ownside_enabled",
-    "track_tradehistory_careful_enabled",
-    "track_tradehistory_careful_limittrades",
-    "track_tradehistory_initial_max_buy",
-    "track_tradehistory_initial_min_sell",
+    "trade_gain_enabled",
+    "trade_gain_hours",
+    "trade_gain_trades",
+    "trade_gain_ownside_enabled",
+    "trade_gain_careful_enabled",
+    "trade_gain_careful_limittrades",
+    "trade_gain_careful_hours",
+    "trade_gain_initial_max_buy",
+    "trade_gain_initial_min_sell",
     "market_indicator_allow_profitable",
 ]
 no_restart_pmm_keys = no_restart_pmm_keys + pmm_k_append

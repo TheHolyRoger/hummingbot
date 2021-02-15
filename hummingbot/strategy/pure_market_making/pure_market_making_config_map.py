@@ -354,77 +354,84 @@ pure_market_making_config_map = {
                   required_if=lambda: False,
                   default=None,
                   type_str="json"),
-    "track_tradehistory_enabled":
-        ConfigVar(key="track_tradehistory_enabled",
+    "trade_gain_enabled":
+        ConfigVar(key="trade_gain_enabled",
                   prompt="Do you want to only allow profitable trades? ((Yes/No) >>> ",
                   type_str="bool",
                   validator=validate_bool,
                   prompt_on_new=True,
                   default=False),
-    "track_tradehistory_hours":
-        ConfigVar(key="track_tradehistory_hours",
+    "trade_gain_hours":
+        ConfigVar(key="trade_gain_hours",
                   prompt="How many hours do you want the profit tracking window to be? >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("track_tradehistory_enabled").value is True,
+                  required_if=lambda: pure_market_making_config_map.get("trade_gain_enabled").value is True,
                   type_str="decimal",
                   validator=lambda v: validate_decimal(v, -1, 10000, True),
                   default=Decimal(4)),
-    "track_tradehistory_trades":
-        ConfigVar(key="track_tradehistory_trades",
+    "trade_gain_trades":
+        ConfigVar(key="trade_gain_trades",
                   prompt="How many trades do you want to consider for tracking within the window? >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("track_tradehistory_enabled").value is True,
+                  required_if=lambda: pure_market_making_config_map.get("trade_gain_enabled").value is True,
                   type_str="int",
                   validator=lambda v: validate_int(v, min_value=0, inclusive=True),
                   default=1),
-    "track_tradehistory_allowed_loss":
-        ConfigVar(key="track_tradehistory_allowed_loss",
+    "trade_gain_allowed_loss":
+        ConfigVar(key="trade_gain_allowed_loss",
                   prompt="What is your accepted loss? (Enter 20 to indicate 20%) >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("track_tradehistory_enabled").value is True,
+                  required_if=lambda: pure_market_making_config_map.get("trade_gain_enabled").value is True,
                   type_str="decimal",
                   validator=lambda v: validate_decimal(v, -100, 100, True),
                   default=Decimal(20)),
-    "track_tradehistory_profit_wanted":
-        ConfigVar(key="track_tradehistory_profit_wanted",
+    "trade_gain_profit_wanted":
+        ConfigVar(key="trade_gain_profit_wanted",
                   prompt="What is your desired profit? (Enter 20 to indicate 20%) >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("track_tradehistory_enabled").value is True,
+                  required_if=lambda: pure_market_making_config_map.get("trade_gain_enabled").value is True,
                   type_str="decimal",
                   validator=lambda v: validate_decimal(v, -100, 100, True),
                   default=Decimal(20)),
-    "track_tradehistory_ownside_enabled":
-        ConfigVar(key="track_tradehistory_ownside_enabled",
+    "trade_gain_ownside_enabled":
+        ConfigVar(key="trade_gain_ownside_enabled",
                   prompt="Do you want to include tracking highest sells and lowest buys? (Yes/No) >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("track_tradehistory_enabled").value is True,
+                  required_if=lambda: pure_market_making_config_map.get("trade_gain_enabled").value is True,
                   type_str="bool",
                   validator=validate_bool,
                   default=False),
-    "track_tradehistory_ownside_allowedloss":
-        ConfigVar(key="track_tradehistory_ownside_allowedloss",
+    "trade_gain_ownside_allowedloss":
+        ConfigVar(key="trade_gain_ownside_allowedloss",
                   prompt="What is your loss margin on high-sells/low-buys? (Enter 20 to indicate 20%) >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("track_tradehistory_ownside_enabled").value is True,
+                  required_if=lambda: pure_market_making_config_map.get("trade_gain_ownside_enabled").value is True,
                   type_str="decimal",
                   validator=lambda v: validate_decimal(v, -100, 100, True),
                   default=Decimal(20)),
-    "track_tradehistory_careful_enabled":
-        ConfigVar(key="track_tradehistory_careful_enabled",
+    "trade_gain_careful_enabled":
+        ConfigVar(key="trade_gain_careful_enabled",
                   prompt="Enable careful mode and wait for X buys/sells before trading the other side? (Yes/No) >>> ",
                   type_str="bool",
                   validator=validate_bool,
                   default=False),
-    "track_tradehistory_careful_limittrades":
-        ConfigVar(key="track_tradehistory_careful_limittrades",
+    "trade_gain_careful_limittrades":
+        ConfigVar(key="trade_gain_careful_limittrades",
                   prompt="What is your desired trade threshold for careful mode? >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("track_tradehistory_careful_enabled").value is True,
+                  required_if=lambda: pure_market_making_config_map.get("trade_gain_careful_enabled").value is True,
                   type_str="int",
                   validator=lambda v: validate_int(v, min_value=0, inclusive=True),
                   default=3),
-    "track_tradehistory_initial_max_buy":
-        ConfigVar(key="track_tradehistory_initial_max_buy",
+    "trade_gain_careful_hours":
+        ConfigVar(key="trade_gain_careful_hours",
+                  prompt="How many hours do you want the careful window to be? >>> ",
+                  required_if=lambda: pure_market_making_config_map.get("trade_gain_careful_enabled").value is True,
+                  type_str="decimal",
+                  validator=lambda v: validate_decimal(v, -1, 10000, True),
+                  default=Decimal(4)),
+    "trade_gain_initial_max_buy":
+        ConfigVar(key="trade_gain_initial_max_buy",
                   prompt="Enter the initial maximum buy price before any trades have been made "
                          "(Enter 0 to deactivate this feature) >>> ",
                   type_str="decimal",
                   default=Decimal("0"),
                   validator=lambda v: validate_decimal(v, min_value=0, inclusive=True)),
-    "track_tradehistory_initial_min_sell":
-        ConfigVar(key="track_tradehistory_initial_min_sell",
+    "trade_gain_initial_min_sell":
+        ConfigVar(key="trade_gain_initial_min_sell",
                   prompt="Enter the initial maximum buy price before any trades have been made "
                          "(Enter 0 to deactivate this feature) >>> ",
                   type_str="decimal",

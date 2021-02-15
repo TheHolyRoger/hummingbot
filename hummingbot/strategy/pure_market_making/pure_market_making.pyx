@@ -93,17 +93,18 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                  market_indicator_allow_profitable: bool = False,
                  price_type: str = "mid_price",
                  take_if_crossed: bool = False,
-                 track_tradehistory_enabled: bool = False,
-                 track_tradehistory_hours: Decimal = Decimal(4),
-                 track_tradehistory_trades: int = 1,
-                 track_tradehistory_allowed_loss: Decimal = Decimal("0.2"),
-                 track_tradehistory_profit_wanted: Decimal = Decimal("0.2"),
-                 track_tradehistory_ownside_enabled: bool = False,
-                 track_tradehistory_ownside_allowedloss: Decimal = Decimal("0.2"),
-                 track_tradehistory_careful_enabled: bool = False,
-                 track_tradehistory_careful_limittrades: int = 3,
-                 track_tradehistory_initial_max_buy: Decimal = s_decimal_zero,
-                 track_tradehistory_initial_min_sell: Decimal = s_decimal_zero,
+                 trade_gain_enabled: bool = False,
+                 trade_gain_hours: Decimal = Decimal(4),
+                 trade_gain_trades: int = 1,
+                 trade_gain_allowed_loss: Decimal = Decimal("0.2"),
+                 trade_gain_profit_wanted: Decimal = Decimal("0.2"),
+                 trade_gain_ownside_enabled: bool = False,
+                 trade_gain_ownside_allowedloss: Decimal = Decimal("0.2"),
+                 trade_gain_careful_enabled: bool = False,
+                 trade_gain_careful_limittrades: int = 3,
+                 trade_gain_careful_hours: Decimal = Decimal(4),
+                 trade_gain_initial_max_buy: Decimal = s_decimal_zero,
+                 trade_gain_initial_min_sell: Decimal = s_decimal_zero,
                  price_ceiling: Decimal = s_decimal_neg_one,
                  price_floor: Decimal = s_decimal_neg_one,
                  ping_pong_enabled: bool = False,
@@ -149,17 +150,18 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         self._market_indicator_allow_profitable = market_indicator_allow_profitable
         self._price_type = self.get_price_type(price_type)
         self._take_if_crossed = take_if_crossed
-        self._track_tradehistory_enabled = track_tradehistory_enabled
-        self._track_tradehistory_hours = track_tradehistory_hours
-        self._track_tradehistory_trades = track_tradehistory_trades
-        self._track_tradehistory_allowed_loss = track_tradehistory_allowed_loss
-        self._track_tradehistory_profit_wanted = track_tradehistory_profit_wanted
-        self._track_tradehistory_ownside_enabled = track_tradehistory_ownside_enabled
-        self._track_tradehistory_ownside_allowedloss = track_tradehistory_ownside_allowedloss
-        self._track_tradehistory_careful_enabled = track_tradehistory_careful_enabled
-        self._track_tradehistory_careful_limittrades = track_tradehistory_careful_limittrades
-        self._track_tradehistory_initial_max_buy = track_tradehistory_initial_max_buy
-        self._track_tradehistory_initial_min_sell = track_tradehistory_initial_min_sell
+        self._trade_gain_enabled = trade_gain_enabled
+        self._trade_gain_hours = trade_gain_hours
+        self._trade_gain_trades = trade_gain_trades
+        self._trade_gain_allowed_loss = trade_gain_allowed_loss
+        self._trade_gain_profit_wanted = trade_gain_profit_wanted
+        self._trade_gain_ownside_enabled = trade_gain_ownside_enabled
+        self._trade_gain_ownside_allowedloss = trade_gain_ownside_allowedloss
+        self._trade_gain_careful_enabled = trade_gain_careful_enabled
+        self._trade_gain_careful_limittrades = trade_gain_careful_limittrades
+        self._trade_gain_careful_hours = trade_gain_careful_hours
+        self._trade_gain_initial_max_buy = trade_gain_initial_max_buy
+        self._trade_gain_initial_min_sell = trade_gain_initial_min_sell
         self._price_ceiling = price_ceiling
         self._price_floor = price_floor
         self._ping_pong_enabled = ping_pong_enabled
@@ -181,8 +183,8 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         self._last_timestamp = 0
         self._status_report_interval = status_report_interval
         self._last_own_trade_price = Decimal('nan')
-        self._track_tradehistory_pricethresh_buy = s_decimal_zero
-        self._track_tradehistory_pricethresh_sell = s_decimal_zero
+        self._trade_gain_pricethresh_buy = s_decimal_zero
+        self._trade_gain_pricethresh_sell = s_decimal_zero
 
         self.c_add_markets([market_info.market])
 
@@ -441,108 +443,116 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         return orders
 
     @property
-    def track_tradehistory_enabled(self) -> bool:
-        return self._track_tradehistory_enabled
+    def trade_gain_enabled(self) -> bool:
+        return self._trade_gain_enabled
 
-    @track_tradehistory_enabled.setter
-    def track_tradehistory_enabled(self, value: bool):
-        self._track_tradehistory_enabled = value
-
-    @property
-    def track_tradehistory_hours(self) -> Decimal:
-        return self._track_tradehistory_hours
-
-    @track_tradehistory_hours.setter
-    def track_tradehistory_hours(self, value: Decimal):
-        self._track_tradehistory_hours = value
+    @trade_gain_enabled.setter
+    def trade_gain_enabled(self, value: bool):
+        self._trade_gain_enabled = value
 
     @property
-    def track_tradehistory_trades(self) -> int:
-        return self._track_tradehistory_trades
+    def trade_gain_hours(self) -> Decimal:
+        return self._trade_gain_hours
 
-    @track_tradehistory_trades.setter
-    def track_tradehistory_trades(self, value: int):
-        self._track_tradehistory_trades = value
-
-    @property
-    def track_tradehistory_allowed_loss(self) -> Decimal:
-        return self._track_tradehistory_allowed_loss
-
-    @track_tradehistory_allowed_loss.setter
-    def track_tradehistory_allowed_loss(self, value: Decimal):
-        self._track_tradehistory_allowed_loss = value
+    @trade_gain_hours.setter
+    def trade_gain_hours(self, value: Decimal):
+        self._trade_gain_hours = value
 
     @property
-    def track_tradehistory_profit_wanted(self) -> Decimal:
-        return self._track_tradehistory_profit_wanted
+    def trade_gain_trades(self) -> int:
+        return self._trade_gain_trades
 
-    @track_tradehistory_profit_wanted.setter
-    def track_tradehistory_profit_wanted(self, value: Decimal):
-        self._track_tradehistory_profit_wanted = value
-
-    @property
-    def track_tradehistory_ownside_enabled(self) -> bool:
-        return self._track_tradehistory_ownside_enabled
-
-    @track_tradehistory_ownside_enabled.setter
-    def track_tradehistory_ownside_enabled(self, value: bool):
-        self._track_tradehistory_ownside_enabled = value
+    @trade_gain_trades.setter
+    def trade_gain_trades(self, value: int):
+        self._trade_gain_trades = value
 
     @property
-    def track_tradehistory_ownside_allowedloss(self) -> Decimal:
-        return self._track_tradehistory_ownside_allowedloss
+    def trade_gain_allowed_loss(self) -> Decimal:
+        return self._trade_gain_allowed_loss
 
-    @track_tradehistory_ownside_allowedloss.setter
-    def track_tradehistory_ownside_allowedloss(self, value: Decimal):
-        self._track_tradehistory_ownside_allowedloss = value
-
-    @property
-    def track_tradehistory_careful_enabled(self) -> bool:
-        return self._track_tradehistory_careful_enabled
-
-    @track_tradehistory_careful_enabled.setter
-    def track_tradehistory_careful_enabled(self, value: bool):
-        self._track_tradehistory_careful_enabled = value
+    @trade_gain_allowed_loss.setter
+    def trade_gain_allowed_loss(self, value: Decimal):
+        self._trade_gain_allowed_loss = value
 
     @property
-    def track_tradehistory_careful_limittrades(self) -> int:
-        return self._track_tradehistory_careful_limittrades
+    def trade_gain_profit_wanted(self) -> Decimal:
+        return self._trade_gain_profit_wanted
 
-    @track_tradehistory_careful_limittrades.setter
-    def track_tradehistory_careful_limittrades(self, value: int):
-        self._track_tradehistory_careful_limittrades = value
-
-    @property
-    def track_tradehistory_initial_max_buy(self) -> Decimal:
-        return self._track_tradehistory_initial_max_buy
-
-    @track_tradehistory_initial_max_buy.setter
-    def track_tradehistory_initial_max_buy(self, value: Decimal):
-        self._track_tradehistory_initial_max_buy = value
+    @trade_gain_profit_wanted.setter
+    def trade_gain_profit_wanted(self, value: Decimal):
+        self._trade_gain_profit_wanted = value
 
     @property
-    def track_tradehistory_initial_min_sell(self) -> Decimal:
-        return self._track_tradehistory_initial_min_sell
+    def trade_gain_ownside_enabled(self) -> bool:
+        return self._trade_gain_ownside_enabled
 
-    @track_tradehistory_initial_min_sell.setter
-    def track_tradehistory_initial_min_sell(self, value: Decimal):
-        self._track_tradehistory_initial_min_sell = value
-
-    @property
-    def track_tradehistory_pricethresh_buy(self) -> Decimal:
-        return self._track_tradehistory_pricethresh_buy
-
-    @track_tradehistory_pricethresh_buy.setter
-    def track_tradehistory_pricethresh_buy(self, value: Decimal):
-        self._track_tradehistory_pricethresh_buy = value
+    @trade_gain_ownside_enabled.setter
+    def trade_gain_ownside_enabled(self, value: bool):
+        self._trade_gain_ownside_enabled = value
 
     @property
-    def track_tradehistory_pricethresh_sell(self) -> Decimal:
-        return self._track_tradehistory_pricethresh_sell
+    def trade_gain_ownside_allowedloss(self) -> Decimal:
+        return self._trade_gain_ownside_allowedloss
 
-    @track_tradehistory_pricethresh_sell.setter
-    def track_tradehistory_pricethresh_sell(self, value: Decimal):
-        self._track_tradehistory_pricethresh_sell = value
+    @trade_gain_ownside_allowedloss.setter
+    def trade_gain_ownside_allowedloss(self, value: Decimal):
+        self._trade_gain_ownside_allowedloss = value
+
+    @property
+    def trade_gain_careful_enabled(self) -> bool:
+        return self._trade_gain_careful_enabled
+
+    @trade_gain_careful_enabled.setter
+    def trade_gain_careful_enabled(self, value: bool):
+        self._trade_gain_careful_enabled = value
+
+    @property
+    def trade_gain_careful_limittrades(self) -> int:
+        return self._trade_gain_careful_limittrades
+
+    @trade_gain_careful_limittrades.setter
+    def trade_gain_careful_limittrades(self, value: int):
+        self._trade_gain_careful_limittrades = value
+
+    @property
+    def trade_gain_careful_hours(self) -> Decimal:
+        return self._trade_gain_careful_hours
+
+    @trade_gain_careful_hours.setter
+    def trade_gain_careful_hours(self, value: Decimal):
+        self._trade_gain_careful_hours = value
+
+    @property
+    def trade_gain_initial_max_buy(self) -> Decimal:
+        return self._trade_gain_initial_max_buy
+
+    @trade_gain_initial_max_buy.setter
+    def trade_gain_initial_max_buy(self, value: Decimal):
+        self._trade_gain_initial_max_buy = value
+
+    @property
+    def trade_gain_initial_min_sell(self) -> Decimal:
+        return self._trade_gain_initial_min_sell
+
+    @trade_gain_initial_min_sell.setter
+    def trade_gain_initial_min_sell(self, value: Decimal):
+        self._trade_gain_initial_min_sell = value
+
+    @property
+    def trade_gain_pricethresh_buy(self) -> Decimal:
+        return self._trade_gain_pricethresh_buy
+
+    @trade_gain_pricethresh_buy.setter
+    def trade_gain_pricethresh_buy(self, value: Decimal):
+        self._trade_gain_pricethresh_buy = value
+
+    @property
+    def trade_gain_pricethresh_sell(self) -> Decimal:
+        return self._trade_gain_pricethresh_sell
+
+    @trade_gain_pricethresh_sell.setter
+    def trade_gain_pricethresh_sell(self, value: Decimal):
+        self._trade_gain_pricethresh_sell = value
 
     @property
     def markets_recorder(self) -> MarketsRecorder:
@@ -861,7 +871,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                 # 5. Apply budget constraint, i.e. can't buy/sell more than what you have.
                 self.c_apply_budget_constraint(proposal)
                 # 6. Check profitable
-                if self._track_tradehistory_enabled:
+                if self._trade_gain_enabled:
                     self.c_apply_profit_constraint(proposal)
                 # 7. Check profitable
                 if self._market_indicator_delegate is not None:
@@ -1072,28 +1082,31 @@ cdef class PureMarketMakingStrategy(StrategyBase):
     cdef c_apply_profit_constraint(self, object proposal):
         cdef:
             ExchangeBase market = self._market_info.market
-            int accept_time = int(time.time() - int((self.track_tradehistory_hours * (60 * 60))))
+            int accept_time = int(time.time() - int((self.trade_gain_hours * (60 * 60))))
+            int accept_time_careful = int(time.time() - int((self.trade_gain_careful_hours * (60 * 60))))
             int recent_buys = 0
+            int recent_buys_cf = 0
             int recent_sells = 0
-            bint careful_trades = self.track_tradehistory_careful_enabled
-            int careful_trades_limit = self.track_tradehistory_careful_limittrades
-            int recent_trades_limit = self.track_tradehistory_trades
+            int recent_sells_cf = 0
+            bint careful_trades = self.trade_gain_careful_enabled
+            int careful_trades_limit = self.trade_gain_careful_limittrades
+            int recent_trades_limit = self.trade_gain_trades
             object highest_buy_price = s_decimal_zero
             object lowest_buy_price = s_decimal_zero
             object highest_sell_price = s_decimal_zero
             object lowest_sell_price = s_decimal_zero
-            object buy_margin = self.track_tradehistory_allowed_loss + Decimal('1')
-            object buy_margin_on_self = self.track_tradehistory_ownside_allowedloss + Decimal('1')
-            object buy_profit = Decimal('1') - self.track_tradehistory_profit_wanted
-            object sell_margin = Decimal('1') - self.track_tradehistory_allowed_loss
-            object sell_margin_on_self = Decimal('1') - self.track_tradehistory_ownside_allowedloss
-            object sell_profit = self.track_tradehistory_profit_wanted + Decimal('1')
+            object buy_margin = self.trade_gain_allowed_loss + Decimal('1')
+            object buy_margin_on_self = self.trade_gain_ownside_allowedloss + Decimal('1')
+            object buy_profit = Decimal('1') - self.trade_gain_profit_wanted
+            object sell_margin = Decimal('1') - self.trade_gain_allowed_loss
+            object sell_margin_on_self = Decimal('1') - self.trade_gain_ownside_allowedloss
+            object sell_profit = self.trade_gain_profit_wanted + Decimal('1')
             list trades = self.trades
             list trades_history = self.trades_history
             object filtered_trades = {}
 
-        self.track_tradehistory_pricethresh_buy = s_decimal_zero
-        self.track_tradehistory_pricethresh_sell = s_decimal_zero
+        self.trade_gain_pricethresh_buy = s_decimal_zero
+        self.trade_gain_pricethresh_sell = s_decimal_zero
 
         all_trades = trades + trades_history if len(trades) < 1000 else trades
         for trade in all_trades:
@@ -1109,6 +1122,11 @@ cdef class PureMarketMakingStrategy(StrategyBase):
             trade = filtered_trades[trade_ts]
             trade_side = trade.side.name if type(trade) == Trade else trade.trade_type
             trade_price = Decimal(str(trade.price))
+            if trade_ts > accept_time_careful:
+                if trade_side == TradeType.SELL.name:
+                    recent_sells_cf += 1
+                elif trade_side == TradeType.BUY.name:
+                    recent_buys_cf += 1
             if trade_ts > accept_time:
                 if trade_side == TradeType.SELL.name:
                     recent_sells += 1
@@ -1117,7 +1135,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                             lowest_sell_price = trade_price
                         if highest_sell_price == s_decimal_zero or trade_price > highest_sell_price:
                             highest_sell_price = trade_price
-                if trade_side == TradeType.BUY.name:
+                elif trade_side == TradeType.BUY.name:
                     recent_buys += 1
                     if recent_buys <= recent_trades_limit:
                         if lowest_buy_price == s_decimal_zero or trade_price < lowest_buy_price:
@@ -1126,50 +1144,50 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                             highest_buy_price = trade_price
 
         if lowest_sell_price != s_decimal_zero:
-            self.track_tradehistory_pricethresh_buy = Decimal(lowest_sell_price * buy_margin)
-            self.track_tradehistory_initial_max_buy = s_decimal_zero
-        elif self.track_tradehistory_initial_max_buy > s_decimal_zero:
-            self.track_tradehistory_pricethresh_buy = self.track_tradehistory_initial_max_buy
+            self.trade_gain_pricethresh_buy = Decimal(lowest_sell_price * buy_margin)
+            self.trade_gain_initial_max_buy = s_decimal_zero
+        elif self.trade_gain_initial_max_buy > s_decimal_zero:
+            self.trade_gain_pricethresh_buy = self.trade_gain_initial_max_buy
 
         if highest_buy_price != s_decimal_zero:
-            self.track_tradehistory_pricethresh_sell = Decimal(highest_buy_price * sell_margin)
-            self.track_tradehistory_initial_min_sell = s_decimal_zero
-        elif self.track_tradehistory_initial_min_sell > s_decimal_zero:
-            self.track_tradehistory_pricethresh_sell = self.track_tradehistory_initial_min_sell
+            self.trade_gain_pricethresh_sell = Decimal(highest_buy_price * sell_margin)
+            self.trade_gain_initial_min_sell = s_decimal_zero
+        elif self.trade_gain_initial_min_sell > s_decimal_zero:
+            self.trade_gain_pricethresh_sell = self.trade_gain_initial_min_sell
 
-        if self.track_tradehistory_ownside_enabled:
+        if self.trade_gain_ownside_enabled:
             chk_ownside_buy = (lowest_buy_price != s_decimal_zero and
-                               self.track_tradehistory_initial_max_buy == s_decimal_zero and
+                               self.trade_gain_initial_max_buy == s_decimal_zero and
                                (lowest_sell_price == s_decimal_zero or
-                                (lowest_buy_price * buy_margin_on_self) < self.track_tradehistory_pricethresh_buy))
+                                (lowest_buy_price * buy_margin_on_self) < self.trade_gain_pricethresh_buy))
             if chk_ownside_buy:
-                self.track_tradehistory_pricethresh_buy = Decimal(lowest_buy_price * buy_margin_on_self)
+                self.trade_gain_pricethresh_buy = Decimal(lowest_buy_price * buy_margin_on_self)
 
             chk_ownside_sell = (highest_sell_price != s_decimal_zero and
-                                self.track_tradehistory_initial_min_sell == s_decimal_zero and
+                                self.trade_gain_initial_min_sell == s_decimal_zero and
                                 (highest_buy_price == s_decimal_zero or
-                                 (highest_sell_price * sell_margin_on_self) > self.track_tradehistory_pricethresh_sell))
+                                 (highest_sell_price * sell_margin_on_self) > self.trade_gain_pricethresh_sell))
             if chk_ownside_sell:
-                self.track_tradehistory_pricethresh_sell = Decimal(highest_sell_price * sell_margin_on_self)
+                self.trade_gain_pricethresh_sell = Decimal(highest_sell_price * sell_margin_on_self)
 
         for buy in proposal.buys:
-            if buy.price > self.track_tradehistory_pricethresh_buy and self.track_tradehistory_pricethresh_buy != s_decimal_zero:
+            if buy.price > self.trade_gain_pricethresh_buy and self.trade_gain_pricethresh_buy != s_decimal_zero:
                 buy_fee = market.c_get_fee(self.base_asset, self.quote_asset, OrderType.LIMIT, TradeType.BUY,
                                            buy.size, buy.price)
                 quote_amount = Decimal((buy.size * buy.price) * (Decimal('1') - buy_fee.percent))
-                buy.price = Decimal((self.track_tradehistory_pricethresh_buy - (self.get_price() - buy.price)) * buy_profit)
+                buy.price = Decimal((self.trade_gain_pricethresh_buy - (self.get_price() - buy.price)) * buy_profit)
                 adjusted_amount = quote_amount / (buy.price)
                 adjusted_amount = market.c_quantize_order_amount(self.trading_pair, adjusted_amount)
                 buy.size = adjusted_amount
-            elif careful_trades and recent_sells < 1 and recent_buys >= careful_trades_limit:
+            elif careful_trades and recent_sells_cf < 1 and recent_buys_cf >= careful_trades_limit:
                 buy.size = s_decimal_zero
 
         proposal.buys = [o for o in proposal.buys if o.size > 0]
 
         for sell in proposal.sells:
-            if sell.price < self.track_tradehistory_pricethresh_sell and self.track_tradehistory_pricethresh_sell != s_decimal_zero:
-                sell.price = Decimal((self.track_tradehistory_pricethresh_sell + (sell.price - self.get_price())) * sell_profit)
-            elif careful_trades and recent_buys < 1 and recent_sells >= careful_trades_limit:
+            if sell.price < self.trade_gain_pricethresh_sell and self.trade_gain_pricethresh_sell != s_decimal_zero:
+                sell.price = Decimal((self.trade_gain_pricethresh_sell + (sell.price - self.get_price())) * sell_profit)
+            elif careful_trades and recent_buys_cf < 1 and recent_sells_cf >= careful_trades_limit:
                 sell.size = s_decimal_zero
 
         proposal.sells = [o for o in proposal.sells if o.size > 0]
@@ -1187,14 +1205,14 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         market_trend_up = indicator.c_trend_is_up()
         market_trend_down = indicator.c_trend_is_down()
 
-        if not allow_profitable or self.track_tradehistory_pricethresh_buy == s_decimal_zero:
+        if not allow_profitable or self.trade_gain_pricethresh_buy == s_decimal_zero:
             for buy in proposal.buys:
                 if not market_trend_up:
                     buy.size = buy.size * indicator_orders_pct
 
         proposal.buys = [o for o in proposal.buys if o.size > 0]
 
-        if not allow_profitable or self.track_tradehistory_pricethresh_sell == s_decimal_zero:
+        if not allow_profitable or self.trade_gain_pricethresh_sell == s_decimal_zero:
             for sell in proposal.sells:
                 if not market_trend_down:
                     sell.size = sell.size * indicator_orders_pct
