@@ -193,6 +193,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         self._trade_gain_pricethresh_buy = s_decimal_zero
         self._trade_gain_pricethresh_sell = s_decimal_zero
         self._trade_gain_dump_it = False
+        self._trade_gain_profitability = s_decimal_zero
 
         self.c_add_markets([market_info.market])
 
@@ -1129,6 +1130,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
             list trades = self.trades
             list trades_history = self.trades_history
             object filtered_trades = {}
+            object current_price = self.get_price()
             cdef double next_pnl_cycle = self._current_timestamp + self._order_refresh_time
             cdef double buyback_pnl_cycle = self._current_timestamp + (self._order_refresh_time * 10)
 
@@ -1138,17 +1140,21 @@ cdef class PureMarketMakingStrategy(StrategyBase):
 
         if self._pnl_timestamp <= self._current_timestamp and self.trade_gain_profit_selloff > s_decimal_zero:
             self._pnl_timestamp = next_pnl_cycle
-            profitability = self.main_profitability()
-            if profitability is not None:
-                if not self._trade_gain_dump_it and Decimal(str(profitability)) >= self.trade_gain_profit_selloff:
-                    self.logger().info(f"Hit profit target @ {profitability:.4f}, beginning sell-off.")
+            ks_profitability = self.main_profitability()
+            if ks_profitability is not None:
+                rel_profitability = profitability = Decimal(str(ks_profitability))
+                if self._trade_gain_profitability != s_decimal_zero:
+                    rel_profitability = profitability - self._trade_gain_profitability
+                if not self._trade_gain_dump_it and rel_profitability >= self.trade_gain_profit_selloff:
+                    self.logger().info(f"Hit profit target @ {rel_profitability:.4f}, beginning sell-off.")
                     self._trade_gain_dump_it = True
+                    self._trade_gain_profitability = profitability
                     self._inventory_target_base_pct = Decimal("0.01")
                     if self.trade_gain_profit_buyin > s_decimal_zero:
-                        self.trade_gain_pricethresh_buy = self.get_price() * (Decimal('1') - self.trade_gain_profit_buyin)
+                        self.trade_gain_pricethresh_buy = current_price * (Decimal('1') - self.trade_gain_profit_buyin)
                 elif self._trade_gain_dump_it and (self.trade_gain_profit_buyin > s_decimal_zero and
-                                                   self.get_price() < self.trade_gain_pricethresh_buy):
-                    self.logger().info("Hit buy-back target @ {profitability:.4f}, allowing trades.")
+                                                   current_price < self.trade_gain_pricethresh_buy):
+                    self.logger().info(f"Hit buy-back target @ {current_price:.8f}, allowing trades.")
                     self._trade_gain_dump_it = False
                     self._inventory_target_base_pct = self._inventory_target_base_pct_restore
                     self._pnl_timestamp = buyback_pnl_cycle
@@ -1223,7 +1229,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                 buy_fee = market.c_get_fee(self.base_asset, self.quote_asset, OrderType.LIMIT, TradeType.BUY,
                                            buy.size, buy.price)
                 quote_amount = Decimal((buy.size * buy.price) * (Decimal('1') - buy_fee.percent))
-                buy.price = Decimal((self.trade_gain_pricethresh_buy - (self.get_price() - buy.price)) * buy_profit)
+                buy.price = Decimal((self.trade_gain_pricethresh_buy - (current_price - buy.price)) * buy_profit)
                 adjusted_amount = quote_amount / (buy.price)
                 adjusted_amount = market.c_quantize_order_amount(self.trading_pair, adjusted_amount)
                 buy.size = adjusted_amount
@@ -1236,7 +1242,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
 
         for sell in proposal.sells:
             if sell.price < self.trade_gain_pricethresh_sell and self.trade_gain_pricethresh_sell != s_decimal_zero:
-                sell.price = Decimal((self.trade_gain_pricethresh_sell + (sell.price - self.get_price())) * sell_profit)
+                sell.price = Decimal((self.trade_gain_pricethresh_sell + (sell.price - current_price)) * sell_profit)
             elif careful_trades and recent_buys_cf < 1 and recent_sells_cf >= careful_trades_limit:
                 sell.size = s_decimal_zero
 

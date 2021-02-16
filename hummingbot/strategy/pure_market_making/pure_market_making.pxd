@@ -55,6 +55,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         object _trade_gain_pricethresh_buyin
         object _trade_gain_profit_selloff
         object _trade_gain_profit_buyin
+        object _trade_gain_profitability
         bint _trade_gain_dump_it
         object _price_ceiling
         object _price_floor
