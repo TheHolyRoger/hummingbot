@@ -23,6 +23,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         double _filled_order_delay
         bint _inventory_skew_enabled
         object _inventory_target_base_pct
+        object _inventory_target_base_pct_restore
         object _inventory_range_multiplier
         bint _hanging_orders_enabled
         object _hanging_orders_cancel_pct
@@ -51,6 +52,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         object _trade_gain_initial_min_sell
         object _trade_gain_pricethresh_buy
         object _trade_gain_pricethresh_sell
+        object _trade_gain_pricethresh_buyin
         object _trade_gain_profit_selloff
         object _trade_gain_profit_buyin
         bint _trade_gain_dump_it
