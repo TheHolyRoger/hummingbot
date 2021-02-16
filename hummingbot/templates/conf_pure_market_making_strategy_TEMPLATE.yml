@@ -125,6 +125,8 @@ trade_gain_careful_limittrades: null
 trade_gain_careful_hours: null
 trade_gain_initial_max_buy: null
 trade_gain_initial_min_sell: null
+trade_gain_profit_selloff: null
+trade_gain_profit_buyin: null
 
 market_indicator_enabled: null
 market_indicator_url: null

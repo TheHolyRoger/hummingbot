@@ -105,6 +105,8 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                  trade_gain_careful_hours: Decimal = Decimal(4),
                  trade_gain_initial_max_buy: Decimal = s_decimal_zero,
                  trade_gain_initial_min_sell: Decimal = s_decimal_zero,
+                 trade_gain_profit_selloff: Decimal = s_decimal_zero,
+                 trade_gain_profit_buyin: Decimal = s_decimal_zero,
                  price_ceiling: Decimal = s_decimal_neg_one,
                  price_floor: Decimal = s_decimal_neg_one,
                  ping_pong_enabled: bool = False,
@@ -162,6 +164,8 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         self._trade_gain_careful_hours = trade_gain_careful_hours
         self._trade_gain_initial_max_buy = trade_gain_initial_max_buy
         self._trade_gain_initial_min_sell = trade_gain_initial_min_sell
+        self._trade_gain_profit_selloff = trade_gain_profit_selloff
+        self._trade_gain_profit_buyin = trade_gain_profit_buyin
         self._price_ceiling = price_ceiling
         self._price_floor = price_floor
         self._ping_pong_enabled = ping_pong_enabled
@@ -171,6 +175,8 @@ cdef class PureMarketMakingStrategy(StrategyBase):
 
         self._cancel_timestamp = 0
         self._create_timestamp = 0
+        self._start_timestamp = 0
+        self._pnl_timestamp = 0
         self._hanging_aged_order_prices = []
         self._limit_order_type = self._market_info.market.get_maker_order_type()
         if take_if_crossed:
@@ -185,6 +191,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         self._last_own_trade_price = Decimal('nan')
         self._trade_gain_pricethresh_buy = s_decimal_zero
         self._trade_gain_pricethresh_sell = s_decimal_zero
+        self._trade_gain_dump_it = False
 
         self.c_add_markets([market_info.market])
 
@@ -539,6 +546,22 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         self._trade_gain_initial_min_sell = value
 
     @property
+    def trade_gain_profit_selloff(self) -> Decimal:
+        return self._trade_gain_profit_selloff
+
+    @trade_gain_profit_selloff.setter
+    def trade_gain_profit_selloff(self, value: Decimal):
+        self._trade_gain_profit_selloff = value
+
+    @property
+    def trade_gain_profit_buyin(self) -> Decimal:
+        return self._trade_gain_profit_buyin
+
+    @trade_gain_profit_buyin.setter
+    def trade_gain_profit_buyin(self, value: Decimal):
+        self._trade_gain_profit_buyin = value
+
+    @property
     def trade_gain_pricethresh_buy(self) -> Decimal:
         return self._trade_gain_pricethresh_buy
 
@@ -826,6 +849,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
     cdef c_start(self, Clock clock, double timestamp):
         StrategyBase.c_start(self, clock, timestamp)
         self._last_timestamp = timestamp
+        self._start_timestamp = timestamp
         # start tracking any restored limit order
         restored_order_ids = self.c_track_restored_orders(self.market_info)
         # make restored order hanging orders
@@ -874,7 +898,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                 if self._trade_gain_enabled:
                     self.c_apply_profit_constraint(proposal)
                 # 7. Check profitable
-                if self._market_indicator_delegate is not None:
+                if self._market_indicator_delegate is not None and not self._trade_gain_dump_it:
                     self.c_apply_indicator_constraint(proposal)
 
                 if not self._take_if_crossed:
@@ -1104,9 +1128,19 @@ cdef class PureMarketMakingStrategy(StrategyBase):
             list trades = self.trades
             list trades_history = self.trades_history
             object filtered_trades = {}
+            cdef double next_pnl_cycle = self._current_timestamp + self._order_refresh_time
 
         self.trade_gain_pricethresh_buy = s_decimal_zero
         self.trade_gain_pricethresh_sell = s_decimal_zero
+
+        if self._pnl_timestamp <= self._current_timestamp and not self._trade_gain_dump_it and self.trade_gain_profit_selloff > s_decimal_zero:
+            self._pnl_timestamp = next_pnl_cycle
+            profitability = self.main_profitability()
+            if profitability is not None:
+                if Decimal(str(profitability)) >= self.trade_gain_profit_selloff:
+                    self.logger().info("Hit profit target, beginning sell-off.")
+                    self._trade_gain_dump_it = True
+                    self._inventory_target_base_pct = Decimal("0.01")
 
         all_trades = trades + trades_history if len(trades) < 1000 else trades
         for trade in all_trades:
@@ -1179,7 +1213,9 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                 adjusted_amount = quote_amount / (buy.price)
                 adjusted_amount = market.c_quantize_order_amount(self.trading_pair, adjusted_amount)
                 buy.size = adjusted_amount
-            elif careful_trades and recent_sells_cf < 1 and recent_buys_cf >= careful_trades_limit:
+            elif self._trade_gain_dump_it or (careful_trades and
+                                              recent_sells_cf < 1 and
+                                              recent_buys_cf >= careful_trades_limit):
                 buy.size = s_decimal_zero
 
         proposal.buys = [o for o in proposal.buys if o.size > 0]
@@ -1205,7 +1241,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         market_trend_up = indicator.c_trend_is_up()
         market_trend_down = indicator.c_trend_is_down()
 
-        if not allow_profitable or self.trade_gain_pricethresh_buy == s_decimal_zero:
+        if not allow_profitable and not self._trade_gain_dump_it or self.trade_gain_pricethresh_buy == s_decimal_zero:
             for buy in proposal.buys:
                 if not market_trend_up:
                     buy.size = buy.size * indicator_orders_pct
@@ -1593,6 +1629,10 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         if self._hb_app_notification:
             from hummingbot.client.hummingbot_application import HummingbotApplication
             HummingbotApplication.main_application()._notify(msg)
+
+    def main_profitability(self):
+        from hummingbot.client.hummingbot_application import HummingbotApplication
+        return HummingbotApplication.main_application().kill_switch._profitability
 
     def get_price_type(self, price_type_str: str) -> PriceType:
         if price_type_str == "mid_price":

@@ -51,6 +51,9 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         object _trade_gain_initial_min_sell
         object _trade_gain_pricethresh_buy
         object _trade_gain_pricethresh_sell
+        object _trade_gain_profit_selloff
+        object _trade_gain_profit_buyin
+        bint _trade_gain_dump_it
         object _price_ceiling
         object _price_floor
         bint _ping_pong_enabled
@@ -60,6 +63,8 @@ cdef class PureMarketMakingStrategy(StrategyBase):
 
         double _cancel_timestamp
         double _create_timestamp
+        double _start_timestamp
+        double _pnl_timestamp
         object _limit_order_type
         bint _all_markets_ready
         int _filled_buys_balance

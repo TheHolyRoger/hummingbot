@@ -38,6 +38,8 @@ pmm_k_append_perc = [
     "trade_gain_allowed_loss",
     "trade_gain_profit_wanted",
     "trade_gain_ownside_allowedloss",
+    "trade_gain_profit_selloff",
+    "trade_gain_profit_buyin",
     "market_indicator_reduce_orders_to_pct",
 ]
 no_restart_pmm_keys_in_percentage = no_restart_pmm_keys_in_percentage + pmm_k_append_perc

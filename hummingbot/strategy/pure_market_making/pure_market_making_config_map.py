@@ -437,6 +437,20 @@ pure_market_making_config_map = {
                   type_str="decimal",
                   default=Decimal("0"),
                   validator=lambda v: validate_decimal(v, min_value=0, inclusive=True)),
+    "trade_gain_profit_selloff":
+        ConfigVar(key="trade_gain_profit_selloff",
+                  prompt="What is your profit percentage at which to sell-off? (Enter 20 to indicate 20%) >>> ",
+                  required_if=lambda: pure_market_making_config_map.get("trade_gain_enabled").value is True,
+                  type_str="decimal",
+                  validator=lambda v: validate_decimal(v, 0, 100, True),
+                  default=Decimal(0)),
+    "trade_gain_profit_buyin":
+        ConfigVar(key="trade_gain_profit_buyin",
+                  prompt="What is the percentage below the sell-off at which to buy back in? (Enter 20 to indicate 20%) >>> ",
+                  required_if=lambda: pure_market_making_config_map.get("trade_gain_enabled").value is True,
+                  type_str="decimal",
+                  validator=lambda v: validate_decimal(v, -100, 100, True),
+                  default=Decimal(0)),
     "market_indicator_enabled":
         ConfigVar(key="market_indicator_enabled",
                   prompt="Enable Market trend indicator tracking with external API? (Yes/No) >>> ",

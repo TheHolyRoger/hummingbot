@@ -86,6 +86,8 @@ def start(self):
         trade_gain_careful_hours = c_map.get("trade_gain_careful_hours").value
         trade_gain_initial_max_buy = c_map.get("trade_gain_initial_max_buy").value
         trade_gain_initial_min_sell = c_map.get("trade_gain_initial_min_sell").value
+        trade_gain_profit_selloff = c_map.get("trade_gain_profit_selloff").value / Decimal('100')
+        trade_gain_profit_buyin = c_map.get("trade_gain_profit_buyin").value / Decimal('100')
 
         market_indicator_enabled = c_map.get("market_indicator_enabled").value
         market_indicator_delegate = None
@@ -138,6 +140,8 @@ def start(self):
             trade_gain_careful_hours=trade_gain_careful_hours,
             trade_gain_initial_max_buy=trade_gain_initial_max_buy,
             trade_gain_initial_min_sell=trade_gain_initial_min_sell,
+            trade_gain_profit_selloff=trade_gain_profit_selloff,
+            trade_gain_profit_buyin=trade_gain_profit_buyin,
             price_ceiling=price_ceiling,
             price_floor=price_floor,
             ping_pong_enabled=ping_pong_enabled,
