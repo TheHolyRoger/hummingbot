@@ -1241,10 +1241,9 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         market_trend_up = indicator.c_trend_is_up()
         market_trend_down = indicator.c_trend_is_down()
 
-        if not allow_profitable and not self._trade_gain_dump_it or self.trade_gain_pricethresh_buy == s_decimal_zero:
-            for buy in proposal.buys:
-                if not market_trend_up:
-                    buy.size = buy.size * indicator_orders_pct
+        for buy in proposal.buys:
+            if not market_trend_up:
+                buy.size = buy.size * indicator_orders_pct
 
         proposal.buys = [o for o in proposal.buys if o.size > 0]
 
