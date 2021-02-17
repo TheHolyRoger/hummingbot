@@ -489,4 +489,25 @@ pure_market_making_config_map = {
                   type_str="bool",
                   validator=validate_bool,
                   default=False),
+    "market_indicator_disable_expired":
+        ConfigVar(key="market_indicator_disable_expired",
+                  prompt="Disable trading with expired signal? (Yes/No) >>> ",
+                  required_if=lambda: pure_market_making_config_map.get("market_indicator_enabled").value is True,
+                  type_str="bool",
+                  validator=validate_bool,
+                  default=False),
+    "market_indicator_expiry_minutes":
+        ConfigVar(key="market_indicator_expiry_minutes",
+                  prompt="How many minutes should the indicator signal expire after? >>> ",
+                  required_if=lambda: pure_market_making_config_map.get("market_indicator_enabled").value is True,
+                  type_str="int",
+                  validator=lambda v: validate_int(v, min_value=0, inclusive=True),
+                  default=5),
+    "market_indicator_use_apitime":
+        ConfigVar(key="market_indicator_use_apitime",
+                  prompt="Use API supplied indicator time for expiry check? (Yes/No) >>> ",
+                  required_if=lambda: pure_market_making_config_map.get("market_indicator_enabled").value is True,
+                  type_str="bool",
+                  validator=validate_bool,
+                  default=False),
 }

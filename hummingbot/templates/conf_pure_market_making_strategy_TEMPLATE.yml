@@ -112,28 +112,43 @@ price_source_custom_api: null
 #Take order if they cross order book when external price source is enabled
 take_if_crossed: null
 
-#Profit and Loss Tracking
+
+
+
+#Trade Tracking
 trade_gain_enabled: null
 trade_gain_hours: null
 trade_gain_trades: null
+
 trade_gain_allowed_loss: null
 trade_gain_profit_wanted: null
+
 trade_gain_ownside_enabled: null
 trade_gain_ownside_allowedloss: null
+
 trade_gain_careful_enabled: null
 trade_gain_careful_limittrades: null
 trade_gain_careful_hours: null
-trade_gain_initial_max_buy: null
-trade_gain_initial_min_sell: null
+
 trade_gain_profit_selloff: null
 trade_gain_profit_buyin: null
 
+trade_gain_initial_max_buy: null
+trade_gain_initial_min_sell: null
+
+#Market Indicator Tracking
 market_indicator_enabled: null
 market_indicator_url: null
 market_indicator_apikey: null
 market_indicator_refresh_time: null
 market_indicator_reduce_orders_to_pct: null
 market_indicator_allow_profitable: null
+market_indicator_disable_expired: null
+market_indicator_expiry_minutes: null
+market_indicator_use_apitime: null
+
+
+
 
 # Use user provided orders to directly override the orders placed by order_amount and order_level_parameter
 # This is an advanced feature and user is expected to directly edit this field in config file

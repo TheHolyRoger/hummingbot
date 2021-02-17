@@ -97,7 +97,15 @@ def start(self):
             indicator_url = c_map.get("market_indicator_url").value
             indicator_key = c_map.get("market_indicator_apikey").value
             indicator_refresh_time = c_map.get("market_indicator_refresh_time").value
-            market_indicator_delegate = MarketIndicatorDelegate(indicator_url, indicator_key, indicator_refresh_time)
+            indicator_disable_expired = c_map.get("market_indicator_disable_expired").value
+            indicator_expiry = c_map.get("market_indicator_expiry_minutes").value
+            indicator_use_time = c_map.get("market_indicator_use_apitime").value
+            market_indicator_delegate = MarketIndicatorDelegate(indicator_url,
+                                                                indicator_key,
+                                                                indicator_refresh_time,
+                                                                indicator_disable_expired,
+                                                                indicator_expiry,
+                                                                indicator_use_time)
 
         strategy_logging_options = PureMarketMakingStrategy.OPTION_LOG_ALL
 

@@ -809,7 +809,13 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         lines.extend(["", "  Markets:"] + ["    " + line for line in markets_df.to_string(index=False).split("\n")])
 
         if self.market_indicator_delegate is not None:
-            trend_str = "Up" if self.market_indicator_delegate.trend_is_up() else "Down"
+            trend_status = self.market_indicator_delegate.trend_is_up()
+            if trend_status is True:
+                trend_str = "Up"
+            elif trend_status is False:
+                trend_str = "Down"
+            else:
+                trend_str = "Expired"
             trend_name = self.market_indicator_delegate.market_indicator_feed.name
             lines.extend(["", "  Trend:"] + [f"    Market Trend is {trend_str} ({trend_name})"])
 
@@ -1262,14 +1268,14 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         market_trend_down = indicator.c_trend_is_down()
 
         for buy in proposal.buys:
-            if not market_trend_up:
+            if market_trend_up in [None, False]:
                 buy.size = buy.size * indicator_orders_pct
 
         proposal.buys = [o for o in proposal.buys if o.size > 0]
 
         if not allow_profitable or self.trade_gain_pricethresh_sell == s_decimal_zero:
             for sell in proposal.sells:
-                if not market_trend_down:
+                if market_trend_down in [None, False]:
                     sell.size = sell.size * indicator_orders_pct
 
         proposal.sells = [o for o in proposal.sells if o.size > 0]

@@ -19,7 +19,13 @@ class MarketIndicatorDataFeed(NetworkBase):
             cls.cadf_logger = logging.getLogger(__name__)
         return cls.cadf_logger
 
-    def __init__(self, api_url, api_key: str = "", update_interval: float = 30.0):
+    def __init__(self,
+                 api_url,
+                 api_key: str = "",
+                 update_interval: float = 30.0,
+                 check_expiry: bool = False,
+                 expire_time: int = 300,
+                 use_indicator_time: bool = False):
         super().__init__()
         self._ready_event = asyncio.Event()
         self._shared_client: Optional[aiohttp.ClientSession] = None
@@ -29,11 +35,13 @@ class MarketIndicatorDataFeed(NetworkBase):
         self._check_network_interval = 120.0
         self._ev_loop = asyncio.get_event_loop()
         self._price: Decimal = 0
-        self._update_interval: float = update_interval
+        self._update_interval = 30.0 if (update_interval is None or update_interval < 1) else update_interval
         self._fetch_trend_task: Optional[asyncio.Task] = None
         self._market_trend = None
         self._last_check = 0
-        self._check_expiry = 300  # Seconds
+        self._check_expiry = check_expiry
+        self._expire_time = 300 if (expire_time is None or expire_time < 1) else (expire_time * 60)  # Seconds
+        self._use_indicator_time = use_indicator_time
 
     @property
     def name(self):
@@ -59,12 +67,18 @@ class MarketIndicatorDataFeed(NetworkBase):
         return NetworkStatus.CONNECTED
 
     def trend_is_up(self) -> bool:
-        return (True if self._last_check > int(time.time() - self._check_expiry) and self._market_trend is True
-                else False)
+        if not self._check_expiry or self._last_check > int(time.time() - self._expire_time):
+            if self._market_trend is True:
+                return True
+            return False
+        return None
 
     def trend_is_down(self) -> bool:
-        return (True if self._last_check > int(time.time() - self._check_expiry) and self._market_trend is False
-                else False)
+        if not self._check_expiry or self._last_check > int(time.time() - self._expire_time):
+            if self._market_trend is False:
+                return True
+            return False
+        return None
 
     async def fetch_trend_loop(self):
         while True:
@@ -80,17 +94,33 @@ class MarketIndicatorDataFeed(NetworkBase):
             await asyncio.sleep(self._update_interval)
 
     async def fetch_trend(self):
-        client = self._http_client()
-        async with client.request("GET",
-                                  self._api_url,
-                                  params=self._api_auth_params) as resp:
-            if resp.status != 200:
-                resp_text = await resp.text()
-                raise Exception(f"Custom API Feed {self.name} server error: {resp_text}")
-            rjson = await resp.json()
-            self._market_trend = True if rjson['market_indicator'] == 'up' else False
-            self._last_check = int(time.time())
-        self._ready_event.set()
+        try:
+            rjson = {}
+            client = self._http_client()
+            async with client.request("GET",
+                                      self._api_url,
+                                      params=self._api_auth_params) as resp:
+                if resp.status != 200:
+                    resp_text = await resp.text()
+                    raise Exception(f"Custom API Feed {self.name} server error: {resp_text}")
+                rjson = await resp.json()
+            respKeys = list(rjson.keys())
+            if 'market_indicator' in respKeys:
+                self._market_trend = True if rjson['market_indicator'] == 'up' else False
+                time_key = None
+                if "timestamp" in respKeys and self._use_indicator_time:
+                    time_key = "timestamp"
+                elif "time" in respKeys and self._use_indicator_time:
+                    time_key = "time"
+                self._last_check = int(time.time())
+                if time_key is not None:
+                    try:
+                        self._last_check = int(rjson[time_key])
+                    except Exception:
+                        pass
+                self._ready_event.set()
+        except Exception as e:
+            raise Exception(f"Custom API Feed {self.name} server error: {e}")
 
     async def start_network(self):
         await self.stop_network()
