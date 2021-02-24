@@ -37,4 +37,4 @@ class Constants:
     UPDATE_ORDERS_INTERVAL = 30.0
 
     # Trading pair splitter regex
-    TRADING_PAIR_SPLITTER = r"^(\w+)(btc|ltc|altm|doge|eth|bnb|xrp|usdt|usdc|usds|tusd|pax|trx|busd|ngn|rub|try|eur|idrt|zar|uah|gbp|bkrw|bidr)$"
+    TRADING_PAIR_SPLITTER = r"^(\w+)(btc|ltc|altm|doge|eth|bnb|usdt|usdc|usds|tusd|cro|roger)$"
