@@ -25,6 +25,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         object _inventory_target_base_pct
         object _inventory_target_base_pct_restore
         object _inventory_range_multiplier
+        object _inventory_range_multiplier_restore
         bint _hanging_orders_enabled
         object _hanging_orders_cancel_pct
         bint _order_optimization_enabled
