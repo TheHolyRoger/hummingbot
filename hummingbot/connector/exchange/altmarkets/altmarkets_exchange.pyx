@@ -138,7 +138,7 @@ cdef class AltmarketsExchange(ExchangeBase):
         self._trading_rules = {}
         self._trading_rules_polling_task = None
         self._tx_tracker = AltmarketsExchangeTransactionTracker(self)
-        self._throttler = Throttler(rate_limit = (5.0, 1.0))
+        self._throttler = Throttler(rate_limit = (10.0, 1.0))
 
     @property
     def name(self) -> str:
@@ -261,17 +261,13 @@ cdef class AltmarketsExchange(ExchangeBase):
                            is_auth_required: bool = False,
                            try_count: int = 0,
                            request_weight: int = 1) -> Dict[str, Any]:
+        # Altmarkets rate limit is 100 https requests per 10 seconds
         async with self._throttler.weighted_task(request_weight=request_weight):
-            content_type = "application/json" if method == "post" else "application/x-www-form-urlencoded"
-            headers = {"Content-Type": content_type}
-            url = Constants.EXCHANGE_ROOT_API + path_url
-            # Altmarkets rate limit is 100 https requests per 10 seconds
-            random.seed()
-            randSleep = (random.randint(1, 5) + random.randint(1, 5)) / 10
-            await asyncio.sleep(0.1 + randSleep)
+            url = f"{Constants.EXCHANGE_ROOT_API}{path_url}"
             client = await self._http_client()
-            if is_auth_required:
-                headers = self._altmarkets_auth.get_headers()
+            headers = self._altmarkets_auth.get_headers() if is_auth_required else {}
+            if "Content-Type" not in list(headers.keys()):
+                headers["Content-Type"] = ("application/json" if method == "post" else "application/x-www-form-urlencoded")
 
             # aiohttp TestClient requires path instead of url
             if isinstance(client, TestClient):
@@ -294,42 +290,39 @@ cdef class AltmarketsExchange(ExchangeBase):
                 )
 
             async with response_coro as response:
-                # Debug logging output here, can remove all this ...
-                # self.logger().info(f"ALTM Req: {url}. \n Params: {params}\n")
-                # self.logger().info(f"ALTM Req Headers: {headers}\n Status: {response.status}. ")
-                # Debug logging ^
                 if response.status not in [200, 201]:
                     if try_count < 3:
-                        time_sleep = int(10 + (randSleep * (2 + try_count)))
-                        self.logger().info(f"Error fetching data from {url}. HTTP status is {response.status}. Retrying in {time_sleep}s.")
+                        try_count += 1
+                        random.seed()
+                        randSleep = 1 + float(random.randint(1, 10) / 100)
+                        time_sleep = float(5 + float(randSleep * (1 + (try_count ** try_count))))
+                        self.logger().info(f"Error fetching data from {url}. HTTP status is {response.status}. Retrying in {time_sleep:.1f}s.")
                         await asyncio.sleep(time_sleep)
                         data = await self._api_request(method = method,
                                                        path_url = path_url,
                                                        params = params,
                                                        data = None,
                                                        is_auth_required = is_auth_required,
-                                                       try_count = try_count + 1)
+                                                       try_count = try_count)
                         return data
-                    # Debug logging output here, can remove all this ...
-                    self.logger().info(f"ALTM Req: {url}. \n Params: {params}\n")
-                    self.logger().info(f"ALTM Req Headers: {headers}\n Status: {response.status}. ")
                     try:
                         parsed_response = await response.json()
-                        self.logger().info(f"ALTM Req json: {parsed_response}. ")
                     except Exception as e:
-                        pass
-                    # Debug logging ^
-                    raise IOError(f"Error fetching data from {url}. HTTP status is {response.status}.")
+                        try:
+                            parsed_response = str(await response.read())
+                            if len(parsed_response) > 100:
+                                parsed_response = f"{parsed_response[:100]} ... (truncated)"
+                        except Exception as e:
+                            parsed_response = None
+                    raise IOError(f"Error fetching data from {url}. HTTP status is {response.status}. Final msg: {parsed_response}")
                 try:
                     parsed_response = await response.json()
                 except Exception:
                     raise IOError(f"Error parsing data from {url}.")
-
-                data = parsed_response
-                if data is None:
+                if parsed_response is None:
                     self.logger().error(f"Error received from {url}. Response is {parsed_response}.")
                     raise AltmarketsAPIError({"error": parsed_response})
-                return data
+                return parsed_response
 
     async def _update_balances(self):
         cdef:
@@ -554,8 +547,13 @@ cdef class AltmarketsExchange(ExchangeBase):
                 exchange_order_id = await tracked_order.get_exchange_order_id()
                 try:
                     order_update = await self.get_order_status(exchange_order_id)
-                except AltmarketsAPIError as e:
-                    err_code = e.error_payload.get("error").get("err-code")
+                except (AltmarketsAPIError) as e:
+                    # TODO AltM - Handle order error cancel msg
+                    err_code = e.error_payload.get("error")
+                    try:
+                        err_code = err_code.get("err-code")
+                    except Exception:
+                        pass
                     self.c_stop_tracking_order(tracked_order.client_order_id)
                     self.logger().info(f"The limit order {tracked_order.client_order_id} "
                                        f"has failed according to order status API. - {err_code}")
@@ -896,17 +894,19 @@ cdef class AltmarketsExchange(ExchangeBase):
         return order_id
 
     async def execute_cancel(self, order_id: str):
+        tracked_order = self._in_flight_orders.get(order_id)
+        if tracked_order is None:
+            raise ValueError(f"Failed to cancel order - {order_id}. Order no longer tracked.")
+        path_url = Constants.ORDER_CANCEL_URI.format(exchange_order_id=tracked_order.exchange_order_id)
         try:
-            tracked_order = self._in_flight_orders.get(order_id)
-            if tracked_order is None:
-                raise ValueError(f"Failed to cancel order - {order_id}. Order not found.")
-            path_url = Constants.ORDER_CANCEL_URI.format(exchange_order_id=tracked_order.exchange_order_id)
             response = await self._api_request("post", path_url=path_url, is_auth_required=True)
 
-        except AltmarketsAPIError as e:
-            order_state = e.error_payload.get("error").get("order-state")
-            if order_state == 7:
-                # order-state is canceled
+        except (AltmarketsAPIError, Exception) as e:
+            order_state = None
+            if type(e) == AltmarketsAPIError and 'error' in list(e.error_payload.keys()):
+                # TODO AltM - Handle order error cancel msg
+                order_state = e.error_payload.get("error").get("order-state", None)
+            if order_state == 'cancelled':
                 self.c_stop_tracking_order(tracked_order.client_order_id)
                 self.logger().info(f"The order {tracked_order.client_order_id} has been cancelled according"
                                    f" to order status API. order_state - {order_state}")
@@ -920,14 +920,6 @@ cdef class AltmarketsExchange(ExchangeBase):
                     app_warning_msg=f"Failed to cancel the order {order_id} on Altmarkets. "
                                     f"Check API key and network connection."
                 )
-
-        except Exception as e:
-            self.logger().network(
-                f"Failed to cancel order {order_id}: {str(e)}",
-                exc_info=True,
-                app_warning_msg=f"Failed to cancel the order {order_id} on Altmarkets. "
-                                f"Check API key and network connection."
-            )
 
     cdef c_cancel(self, str trading_pair, str order_id):
         safe_ensure_future(self.execute_cancel(order_id))

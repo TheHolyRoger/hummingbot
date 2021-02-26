@@ -7,6 +7,7 @@ import random
 import logging
 import pandas as pd
 import time
+import ujson
 from typing import (
     Any,
     AsyncIterable,
@@ -14,9 +15,6 @@ from typing import (
     List,
     Optional,
 )
-from decimal import Decimal
-import requests
-import cachetools.func
 import websockets
 from websockets.exceptions import ConnectionClosed
 
@@ -27,9 +25,56 @@ from hummingbot.logger import HummingbotLogger
 from hummingbot.connector.exchange.altmarkets.altmarkets_order_book import AltmarketsOrderBook
 from hummingbot.connector.exchange.altmarkets.altmarkets_constants import Constants
 from hummingbot.connector.exchange.altmarkets.altmarkets_utils import (
-    convert_from_exchange_trading_pair,
     convert_to_exchange_trading_pair
 )
+
+
+async def api_request(method,
+                      path_url,
+                      params: Optional[Dict[str, Any]] = None,
+                      data=None,
+                      client=None,
+                      try_count: int = 0) -> Dict[str, Any]:
+    class AltmarketsAPIError(IOError):
+        def __init__(self, error_payload: Dict[str, Any]):
+            super().__init__(str(error_payload))
+            self.error_payload = error_payload
+    url = f"{Constants.EXCHANGE_ROOT_API}{path_url}"
+    headers = {"Content-Type": ("application/json" if method == "post" else "application/x-www-form-urlencoded")}
+    http_client = client if client is not None else aiohttp.ClientSession()
+    response_coro = http_client.request(
+        method=method.upper(), url=url, headers=headers, params=params, data=ujson.dumps(data), timeout=Constants.API_CALL_TIMEOUT
+    )
+
+    async with response_coro as response:
+        if response.status not in [200, 201]:
+            if try_count < 3:
+                try_count += 1
+                random.seed()
+                randSleep = 1 + float(random.randint(1, 10) / 100)
+                time_sleep = float(5 + float(randSleep * (1 + (try_count ** try_count))))
+                print(f"Error fetching data from {url}. HTTP status is {response.status}. Retrying in {time_sleep:.1f}s.")
+                await asyncio.sleep(time_sleep)
+                data = await api_request(method=method, path_url=path_url, params=params, data=None, client=client, try_count=try_count)
+                return data
+            try:
+                parsed_response = await response.json()
+            except Exception:
+                try:
+                    parsed_response = str(await response.read())
+                    if len(parsed_response) > 100:
+                        parsed_response = f"{parsed_response[:100]} ... (truncated)"
+                except Exception:
+                    parsed_response = None
+            raise IOError(f"Error fetching data from {url}. HTTP status is {response.status}. Final msg: {parsed_response}.")
+        try:
+            parsed_response = await response.json()
+        except Exception:
+            raise IOError(f"Error parsing data from {url}.")
+        if parsed_response is None:
+            print(f"Error received from {url}. Response is {parsed_response}.")
+            raise AltmarketsAPIError({"error": parsed_response})
+        return parsed_response
 
 
 class AltmarketsAPIOrderBookDataSource(OrderBookTrackerDataSource):
@@ -49,44 +94,37 @@ class AltmarketsAPIOrderBookDataSource(OrderBookTrackerDataSource):
     async def get_last_traded_prices(cls, trading_pairs: List[str]) -> Dict[str, float]:
         results = dict()
         # Altmarkets rate limit is 100 https requests per 10 seconds
-        random.seed()
-        randSleep = (random.randint(1, 9) + random.randint(1, 9)) / 10
-        await asyncio.sleep(0.5 + randSleep)
-        async with aiohttp.ClientSession() as client:
-            resp = await client.get(Constants.EXCHANGE_ROOT_API + Constants.TICKER_URI)
-            resp_json = await resp.json()
-            for trading_pair in trading_pairs:
-                resp_record = [resp_json[symbol] for symbol in list(resp_json.keys()) if symbol == convert_to_exchange_trading_pair(trading_pair)][0]['ticker']
-                results[trading_pair] = float(resp_record["last"])
+        resp_json = await api_request("get", Constants.TICKER_URI)
+        for trading_pair in trading_pairs:
+            resp_record = [resp_json[symbol] for symbol in list(resp_json.keys()) if symbol == convert_to_exchange_trading_pair(trading_pair)][0]['ticker']
+            results[trading_pair] = float(resp_record["last"])
         return results
 
-    @staticmethod
-    @cachetools.func.ttl_cache(ttl=10)
-    def get_mid_price(trading_pair: str) -> Optional[Decimal]:
-        resp = requests.get(url=Constants.EXCHANGE_ROOT_API + Constants.TICKER_URI)
-        records = resp.json()
-        result = None
-        for tag in list(records.keys()):
-            record = records[tag]
-            pair = convert_from_exchange_trading_pair(tag)
-            if trading_pair == pair and record["ticker"]["open"] is not None and record["ticker"]["last"] is not None:
-                result = ((Decimal(record["ticker"]["open"]) * Decimal('1')) + (Decimal(record["ticker"]["last"]) * Decimal('3'))) / Decimal("4")
-                if result <= 0:
-                    result = Decimal('0.00000001')
-                break
-        return result
+    # Deprecated get_mid_price function - mid price is pulled from order book now.
+    # @staticmethod
+    # @cachetools.func.ttl_cache(ttl=10)
+    # def get_mid_price(trading_pair: str) -> Optional[Decimal]:
+    #     resp = requests.get(url=Constants.EXCHANGE_ROOT_API + Constants.TICKER_URI)
+    #     records = resp.json()
+    #     result = None
+    #     for tag in list(records.keys()):
+    #         record = records[tag]
+    #         pair = convert_from_exchange_trading_pair(tag)
+    #         if trading_pair == pair and record["ticker"]["open"] is not None and record["ticker"]["last"] is not None:
+    #             result = ((Decimal(record["ticker"]["open"]) * Decimal('1')) + (Decimal(record["ticker"]["last"]) * Decimal('3'))) / Decimal("4")
+    #             if result <= 0:
+    #                 result = Decimal('0.00000001')
+    #             break
+    #     return result
 
     @staticmethod
     async def fetch_trading_pairs() -> List[str]:
         try:
-            async with aiohttp.ClientSession() as client:
-                async with client.get(Constants.EXCHANGE_ROOT_API + Constants.SYMBOLS_URI, timeout=Constants.API_CALL_TIMEOUT) as response:
-                    if response.status == 200:
-                        products: List[Dict[str, Any]] = await response.json()
-                        return [
-                            product["name"].replace("/", "-") for product in products
-                            if product['state'] == "enabled"
-                        ]
+            products: List[Dict[str, Any]] = await api_request("get", Constants.SYMBOLS_URI)
+            return [
+                product["name"].replace("/", "-") for product in products
+                if product['state'] == "enabled"
+            ]
 
         except Exception:
             # Do nothing if the request fails -- there will be no autocomplete for huobi trading pairs
@@ -99,17 +137,13 @@ class AltmarketsAPIOrderBookDataSource(OrderBookTrackerDataSource):
         # when type is set to "step0", the default value of "depth" is 150
         # params: Dict = {"symbol": trading_pair, "type": "step0"}
         # Altmarkets rate limit is 100 https requests per 10 seconds
-        random.seed()
-        randSleep = (random.randint(1, 9) + random.randint(1, 9)) / 10
-        await asyncio.sleep(0.5 + randSleep)
-        async with client.get(Constants.EXCHANGE_ROOT_API + Constants.DEPTH_URI.format(trading_pair=convert_to_exchange_trading_pair(trading_pair))) as response:
-            response: aiohttp.ClientResponse = response
-            if response.status != 200:
-                raise IOError(f"Error fetching Altmarkets market snapshot for {trading_pair}. "
-                              f"HTTP status is {response.status}.")
-            api_data = await response.read()
-            data: Dict[str, Any] = json.loads(api_data)
+        try:
+            data: Dict[str, Any] = await api_request("get",
+                                                     Constants.DEPTH_URI.format(trading_pair=convert_to_exchange_trading_pair(trading_pair)),
+                                                     client=client)
             return data
+        except Exception:
+            raise IOError(f"Error fetching Altmarkets market snapshot for {trading_pair}.")
 
     async def get_new_order_book(self, trading_pair: str) -> OrderBook:
         async with aiohttp.ClientSession() as client:
