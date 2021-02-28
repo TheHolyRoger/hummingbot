@@ -12,6 +12,7 @@ class Constants:
     TIMESTAMP_URI = "public/timestamp"
     SYMBOLS_URI = "public/markets"
     TICKER_URI = "public/markets/tickers"
+    TICKER_SINGLE_URI = "public/markets/{trading_pair}/tickers"
     DEPTH_URI = "public/markets/{trading_pair}/depth?limit=300"
     # # Private GET
     ACCOUNTS_BALANCE_URI = "account/balances"

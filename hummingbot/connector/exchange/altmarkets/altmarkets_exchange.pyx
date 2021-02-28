@@ -60,7 +60,10 @@ from hummingbot.connector.exchange.altmarkets.altmarkets_user_stream_tracker imp
 from hummingbot.connector.exchange.altmarkets.altmarkets_constants import Constants
 from hummingbot.connector.exchange.altmarkets.altmarkets_utils import (
     convert_to_exchange_trading_pair,
-    convert_from_exchange_trading_pair)
+    convert_from_exchange_trading_pair,
+    retry_sleep_time,
+    AltmarketsAPIError,
+)
 from hummingbot.connector.trading_rule cimport TradingRule
 from hummingbot.connector.exchange_base import ExchangeBase
 from hummingbot.core.utils.tracking_nonce import get_tracking_nonce
@@ -69,12 +72,6 @@ from hummingbot.core.utils.estimate_fee import estimate_fee
 hm_logger = None
 s_decimal_0 = Decimal(0)
 s_decimal_NaN = Decimal("NaN")
-
-
-class AltmarketsAPIError(IOError):
-    def __init__(self, error_payload: Dict[str, Any]):
-        super().__init__(str(error_payload))
-        self.error_payload = error_payload
 
 
 cdef class AltmarketsExchangeTransactionTracker(TransactionTracker):
@@ -138,7 +135,7 @@ cdef class AltmarketsExchange(ExchangeBase):
         self._trading_rules = {}
         self._trading_rules_polling_task = None
         self._tx_tracker = AltmarketsExchangeTransactionTracker(self)
-        self._throttler = Throttler(rate_limit = (10.0, 1.0))
+        self._throttler = Throttler(rate_limit = (20.0, 6.0))
 
     @property
     def name(self) -> str:
@@ -267,7 +264,8 @@ cdef class AltmarketsExchange(ExchangeBase):
             client = await self._http_client()
             headers = self._altmarkets_auth.get_headers() if is_auth_required else {}
             if "Content-Type" not in list(headers.keys()):
-                headers["Content-Type"] = ("application/json" if method == "post" else "application/x-www-form-urlencoded")
+                headers["Content-Type"] = ("application/json" if method == "post"
+                                           else "application/x-www-form-urlencoded")
 
             # aiohttp TestClient requires path instead of url
             if isinstance(client, TestClient):
@@ -289,40 +287,39 @@ cdef class AltmarketsExchange(ExchangeBase):
                     timeout=100
                 )
 
-            async with response_coro as response:
-                if response.status not in [200, 201]:
-                    if try_count < 3:
-                        try_count += 1
-                        random.seed()
-                        randSleep = 1 + float(random.randint(1, 10) / 100)
-                        time_sleep = float(5 + float(randSleep * (1 + (try_count ** try_count))))
-                        self.logger().info(f"Error fetching data from {url}. HTTP status is {response.status}. Retrying in {time_sleep:.1f}s.")
-                        await asyncio.sleep(time_sleep)
-                        data = await self._api_request(method = method,
-                                                       path_url = path_url,
-                                                       params = params,
-                                                       data = None,
-                                                       is_auth_required = is_auth_required,
-                                                       try_count = try_count)
-                        return data
+            http_status, parsed_response, request_errors = None, None, False
+            try:
+                async with response_coro as response:
                     try:
                         parsed_response = await response.json()
-                    except Exception as e:
+                    except Exception:
+                        request_errors = True
                         try:
                             parsed_response = str(await response.read())
                             if len(parsed_response) > 100:
                                 parsed_response = f"{parsed_response[:100]} ... (truncated)"
-                        except Exception as e:
-                            parsed_response = None
-                    raise IOError(f"Error fetching data from {url}. HTTP status is {response.status}. Final msg: {parsed_response}")
-                try:
-                    parsed_response = await response.json()
-                except Exception:
-                    raise IOError(f"Error parsing data from {url}.")
-                if parsed_response is None:
-                    self.logger().error(f"Error received from {url}. Response is {parsed_response}.")
+                        except Exception:
+                            pass
+                    if response.status not in [200, 201] or parsed_response is None:
+                        request_errors = True
+                        http_status = response.status
+            except Exception:
+                request_errors = True
+            if request_errors or parsed_response is None:
+                if try_count < 4:
+                    try_count += 1
+                    time_sleep = retry_sleep_time(try_count)
+                    print(f"Error fetching data from {url}. HTTP status is {http_status}. "
+                          f"Retrying in {time_sleep:.1f}s.")
+                    await asyncio.sleep(time_sleep)
+                    return await self._api_request(method=method, path_url=path_url, params=params,
+                                                   data=data, is_auth_required = is_auth_required,
+                                                   try_count=try_count, request_weight=request_weight)
+                else:
+                    print(f"Error fetching data from {url}. HTTP status is {http_status}. "
+                          f"Final msg: {parsed_response}.")
                     raise AltmarketsAPIError({"error": parsed_response})
-                return parsed_response
+            return parsed_response
 
     async def _update_balances(self):
         cdef:
@@ -388,13 +385,14 @@ cdef class AltmarketsExchange(ExchangeBase):
 
         for info in raw_trading_pair_info:
             try:
+                min_amount = Decimal(info["min_amount"])
+                min_notional = min(Decimal(info["min_price"]) * min_amount, Decimal("0.00000001"))
                 trading_rules.append(
                     TradingRule(trading_pair=info["id"],
-                                min_order_size=Decimal(info["min_amount"]),
-                                max_order_size=Decimal(info["min_amount"])*Decimal('1000000'),
+                                min_order_size=min_amount,
                                 min_price_increment=Decimal(f"1e-{info['price_precision']}"),
                                 min_base_amount_increment=Decimal(f"1e-{info['amount_precision']}"),
-                                min_quote_amount_increment=Decimal(f"1e-{info['amount_precision']}"))
+                                min_notional_size=min_notional)
                 )
             except Exception:
                 self.logger().error(f"Error parsing the trading pair rule {info}. Skipping.", exc_info=True)
@@ -723,11 +721,11 @@ cdef class AltmarketsExchange(ExchangeBase):
                           order_id: str,
                           trading_pair: str,
                           amount: Decimal,
-                          is_buy: bool,
+                          trade_type: TradeType,
                           order_type: OrderType,
                           price: Decimal) -> str:
         path_url = Constants.ORDER_CREATION_URI
-        side = "buy" if is_buy else "sell"
+        side = "buy" if trade_type == TradeType.BUY else "sell"
         order_type_str = "limit" if order_type is OrderType.LIMIT else "market"
 
         params = {
@@ -749,12 +747,13 @@ cdef class AltmarketsExchange(ExchangeBase):
         )
         return str(exchange_order['id'])
 
-    async def execute_buy(self,
-                          order_id: str,
-                          trading_pair: str,
-                          amount: Decimal,
-                          order_type: OrderType,
-                          price: Optional[Decimal] = s_decimal_0):
+    async def create_order(self,
+                           order_id: str,
+                           trading_pair: str,
+                           amount: Decimal,
+                           trade_type: TradeType,
+                           order_type: OrderType,
+                           price: Optional[Decimal] = s_decimal_0):
         cdef:
             TradingRule trading_rule = self._trading_rules[trading_pair]
             object quote_amount
@@ -765,47 +764,40 @@ cdef class AltmarketsExchange(ExchangeBase):
 
         decimal_amount = self.quantize_order_amount(trading_pair, amount)
         decimal_price = self.quantize_order_price(trading_pair, price)
-        if order_type == OrderType.LIMIT and decimal_price <= s_decimal_0:
-            raise ValueError(f"Price of {decimal_price:.8f} is too low.")
-        if decimal_amount < trading_rule.min_order_size:
-            raise ValueError(f"Buy order amount {decimal_amount:.8f} is lower than the minimum order size "
-                             f"{trading_rule.min_order_size:.8f}.")
+        if trade_type == TradeType.BUY:
+            event_tag, event_cls, side_str = self.MARKET_BUY_ORDER_CREATED_EVENT_TAG, BuyOrderCreatedEvent, "Buy"
+        else:
+            event_tag, event_cls, side_str = self.MARKET_SELL_ORDER_CREATED_EVENT_TAG, SellOrderCreatedEvent, "Sell"
         try:
-            exchange_order_id = await self.place_order(order_id, trading_pair, decimal_amount, True, order_type, decimal_price)
+            if order_type == OrderType.LIMIT and decimal_price <= s_decimal_0:
+                raise ValueError(f"Price of {decimal_price:.8f} is too low.")
+            if decimal_amount < trading_rule.min_order_size:
+                raise ValueError(f"{side_str} order amount {decimal_amount:.8f} is lower than the minimum order size "
+                                 f"{trading_rule.min_order_size:.8f}.")
+            exchange_order_id = await self.place_order(order_id, trading_pair, decimal_amount,
+                                                       trade_type, order_type, decimal_price)
             self.c_start_tracking_order(
-                client_order_id=order_id,
-                exchange_order_id=exchange_order_id,
-                trading_pair=trading_pair,
-                order_type=order_type,
-                trade_type=TradeType.BUY,
-                price=decimal_price,
-                amount=decimal_amount
-            )
+                client_order_id=order_id, exchange_order_id=exchange_order_id, trading_pair=trading_pair,
+                order_type=order_type, trade_type=trade_type, price=decimal_price, amount=decimal_amount)
             tracked_order = self._in_flight_orders.get(order_id)
             if tracked_order is not None:
-                self.logger().info(f"Created {order_type} buy order {order_id} for {decimal_amount} {trading_pair}.")
+                self.logger().info(f"Created {order_type} {side_str} order {order_id} for {decimal_amount}"
+                                   f" {trading_pair}.")
                 tracked_order.update_exchange_order_id(exchange_order_id)
-            self.c_trigger_event(self.MARKET_BUY_ORDER_CREATED_EVENT_TAG,
-                                 BuyOrderCreatedEvent(
-                                     self._current_timestamp,
-                                     order_type,
-                                     trading_pair,
-                                     decimal_amount,
-                                     decimal_price,
-                                     order_id
-                                 ))
+            self.c_trigger_event(event_tag,
+                                 event_cls(
+                                     self._current_timestamp, order_type, trading_pair,
+                                     decimal_amount, decimal_price, order_id))
         except asyncio.CancelledError:
             raise
-        except Exception:
+        except Exception as e:
             self.c_stop_tracking_order(order_id)
             order_type_str = order_type.name.lower()
             self.logger().network(
-                f"Error submitting buy {order_type_str} order to Altmarkets for "
-                f"{decimal_amount} {trading_pair} "
-                f"{decimal_price if order_type is not OrderType.MARKET else ''}.",
+                f"Error submitting {side_str} {order_type_str} order to AltMarkets for {decimal_amount}"
+                f" {trading_pair} {decimal_price if order_type is not OrderType.MARKET else ''}.",
                 exc_info=True,
-                app_warning_msg=f"Failed to submit buy order to Altmarkets. Check API key and network connection."
-            )
+                app_warning_msg=(f"Failed to submit {side_str} order: {e} (Stack trace in logs)"))
             self.c_trigger_event(self.MARKET_ORDER_FAILURE_EVENT_TAG,
                                  MarketOrderFailureEvent(self._current_timestamp, order_id, order_type))
 
@@ -819,68 +811,8 @@ cdef class AltmarketsExchange(ExchangeBase):
             int64_t tracking_nonce = <int64_t> get_tracking_nonce()
             str order_id = f"buy-{trading_pair}-{tracking_nonce}"
 
-        safe_ensure_future(self.execute_buy(order_id, trading_pair, amount, order_type, price))
+        safe_ensure_future(self.create_order(order_id, trading_pair, amount, TradeType.BUY, order_type, price))
         return order_id
-
-    async def execute_sell(self,
-                           order_id: str,
-                           trading_pair: str,
-                           amount: Decimal,
-                           order_type: OrderType,
-                           price: Optional[Decimal] = s_decimal_0):
-        cdef:
-            TradingRule trading_rule = self._trading_rules[trading_pair]
-            object decimal_amount
-            object decimal_price
-            str exchange_order_id
-            object tracked_order
-
-        decimal_amount = self.quantize_order_amount(trading_pair, amount)
-        decimal_price = self.quantize_order_price(trading_pair, price)
-        if order_type == OrderType.LIMIT and decimal_price <= s_decimal_0:
-            raise ValueError(f"Price of {decimal_price:.8f} is too low.")
-        if decimal_amount < trading_rule.min_order_size:
-            raise ValueError(f"Sell order amount {decimal_amount:.8f} is lower than the minimum order size "
-                             f"{trading_rule.min_order_size:.8f}.")
-
-        try:
-            exchange_order_id = await self.place_order(order_id, trading_pair, decimal_amount, False, order_type, decimal_price)
-            self.c_start_tracking_order(
-                client_order_id=order_id,
-                exchange_order_id=exchange_order_id,
-                trading_pair=trading_pair,
-                order_type=order_type,
-                trade_type=TradeType.SELL,
-                price=decimal_price,
-                amount=decimal_amount
-            )
-            tracked_order = self._in_flight_orders.get(order_id)
-            if tracked_order is not None:
-                self.logger().info(f"Created {order_type} sell order {order_id} for {decimal_amount} {trading_pair}.")
-                tracked_order.update_exchange_order_id(exchange_order_id)
-            self.c_trigger_event(self.MARKET_SELL_ORDER_CREATED_EVENT_TAG,
-                                 SellOrderCreatedEvent(
-                                     self._current_timestamp,
-                                     order_type,
-                                     trading_pair,
-                                     decimal_amount,
-                                     decimal_price,
-                                     order_id
-                                 ))
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            self.c_stop_tracking_order(order_id)
-            order_type_str = order_type.name.lower()
-            self.logger().network(
-                f"Error submitting sell {order_type_str} order to Altmarkets for "
-                f"{decimal_amount} {trading_pair} "
-                f"{decimal_price if order_type is not OrderType.MARKET else ''}.",
-                exc_info=True,
-                app_warning_msg=f"Failed to submit sell order to Altmarkets. Check API key and network connection."
-            )
-            self.c_trigger_event(self.MARKET_ORDER_FAILURE_EVENT_TAG,
-                                 MarketOrderFailureEvent(self._current_timestamp, order_id, order_type))
 
     cdef str c_sell(self,
                     str trading_pair,
@@ -890,7 +822,7 @@ cdef class AltmarketsExchange(ExchangeBase):
         cdef:
             int64_t tracking_nonce = <int64_t> get_tracking_nonce()
             str order_id = f"sell-{trading_pair}-{tracking_nonce}"
-        safe_ensure_future(self.execute_sell(order_id, trading_pair, amount, order_type, price))
+        safe_ensure_future(self.create_order(order_id, trading_pair, amount, TradeType.SELL, order_type, price))
         return order_id
 
     async def execute_cancel(self, order_id: str):
@@ -898,28 +830,32 @@ cdef class AltmarketsExchange(ExchangeBase):
         if tracked_order is None:
             raise ValueError(f"Failed to cancel order - {order_id}. Order no longer tracked.")
         path_url = Constants.ORDER_CANCEL_URI.format(exchange_order_id=tracked_order.exchange_order_id)
+        order_state, errors = None, None
         try:
             response = await self._api_request("post", path_url=path_url, is_auth_required=True)
-
+            if isinstance(response, dict) and "state" in list(response.keys()):
+                order_state = response["state"]
         except (AltmarketsAPIError, Exception) as e:
-            order_state = None
-            if type(e) == AltmarketsAPIError and 'error' in list(e.error_payload.keys()):
-                # TODO AltM - Handle order error cancel msg
-                order_state = e.error_payload.get("error").get("order-state", None)
-            if order_state == 'cancelled':
-                self.c_stop_tracking_order(tracked_order.client_order_id)
-                self.logger().info(f"The order {tracked_order.client_order_id} has been cancelled according"
-                                   f" to order status API. order_state - {order_state}")
-                self.c_trigger_event(self.MARKET_ORDER_CANCELLED_EVENT_TAG,
-                                     OrderCancelledEvent(self._current_timestamp,
-                                                         tracked_order.client_order_id))
-            else:
-                self.logger().network(
-                    f"Failed to cancel order {order_id}: {str(e)}",
-                    exc_info=True,
-                    app_warning_msg=f"Failed to cancel the order {order_id} on Altmarkets. "
-                                    f"Check API key and network connection."
-                )
+            errors = e
+            if isinstance(e, AltmarketsAPIError) and 'error' in list(e.error_payload.keys()):
+                errors = e.error_payload.get("error")
+                order_state = e.error_payload.get("error").get("state", None)
+        if order_state in ['wait', 'cancel', 'done', 'reject']:
+            self.c_stop_tracking_order(tracked_order.client_order_id)
+            self.logger().info(f"The order {tracked_order.client_order_id} has been cancelled according"
+                               f" to order status API.")
+            self.c_trigger_event(self.MARKET_ORDER_CANCELLED_EVENT_TAG,
+                                 OrderCancelledEvent(self._current_timestamp,
+                                                     tracked_order.client_order_id))
+            return CancellationResult(order_id, True)
+        else:
+            self.logger().network(
+                f"Failed to cancel order: {order_id}, state: {order_state}, errors: {str(errors)}",
+                exc_info=True,
+                app_warning_msg=f"Failed to cancel the order {order_id} on Altmarkets. "
+                                f"Check API key and network connection."
+            )
+            return CancellationResult(order_id, False)
 
     cdef c_cancel(self, str trading_pair, str order_id):
         safe_ensure_future(self.execute_cancel(order_id))
@@ -929,15 +865,15 @@ cdef class AltmarketsExchange(ExchangeBase):
         open_orders = [o for o in self._in_flight_orders.values() if o.is_open]
         if len(open_orders) == 0:
             return []
-        cancel_order_ids = [o.client_order_id for o in open_orders]
-        cancellation_results = []
+        tasks = [self.execute_cancel(o.client_order_id) for o in open_orders]
+        order_id_set = set([o.client_order_id for o in open_orders])
+        successful_cancellations = []
         try:
-            for order_id in cancel_order_ids:
-                cancel_order_result = await self.execute_cancel(order_id)
-                cancellation_results.append(CancellationResult(order_id, True))
+            async with timeout(timeout_seconds):
+                cancellation_results = await safe_gather(*tasks, return_exceptions=True)
         except Exception as e:
             self.logger().network(
-                f"Failed to cancel all orders: {cancel_order_ids}",
+                f"Failed to cancel all orders: {order_id_set}",
                 exc_info=True,
                 app_warning_msg=f"Failed to cancel all orders on Altmarkets. Check API key and network connection."
             )

@@ -1,8 +1,14 @@
+import aiohttp
+import asyncio
+import random
 import re
 from hummingbot.connector.exchange.altmarkets.altmarkets_constants import Constants
 from typing import (
+    Any,
+    Dict,
     Optional,
-    Tuple)
+    Tuple,
+)
 from hummingbot.client.config.config_var import ConfigVar
 from hummingbot.client.config.config_methods import using_exchange
 
@@ -14,6 +20,12 @@ CENTRALIZED = True
 EXAMPLE_PAIR = "ALTM-BTC"
 
 DEFAULT_FEES = [0.1, 0.2]
+
+
+class AltmarketsAPIError(IOError):
+    def __init__(self, error_payload: Dict[str, Any]):
+        super().__init__(str(error_payload))
+        self.error_payload = error_payload
 
 
 def split_trading_pair(trading_pair: str) -> Optional[Tuple[str, str]]:
@@ -36,6 +48,58 @@ def convert_from_exchange_trading_pair(exchange_trading_pair: str) -> Optional[s
 def convert_to_exchange_trading_pair(am_trading_pair: str) -> str:
     # Altmarkets uses lowercase (btcusdt)
     return am_trading_pair.replace("-", "").lower()
+
+
+def retry_sleep_time(try_count: int) -> float:
+    random.seed()
+    randSleep = 1 + float(random.randint(1, 10) / 100)
+    return float(5 + float(randSleep * (1 + (try_count ** try_count))))
+
+
+async def generic_api_request(method,
+                              path_url,
+                              params: Optional[Dict[str, Any]] = None,
+                              client=None,
+                              try_count: int = 0) -> Dict[str, Any]:
+    url = f"{Constants.EXCHANGE_ROOT_API}{path_url}"
+    headers = {"Content-Type": ("application/json" if method == "post"
+                                else "application/x-www-form-urlencoded")}
+    http_client = client if client is not None else aiohttp.ClientSession()
+    response_coro = http_client.request(
+        method=method.upper(), url=url, headers=headers, params=params, timeout=Constants.API_CALL_TIMEOUT
+    )
+    http_status, parsed_response, request_errors = None, None, False
+    try:
+        async with response_coro as response:
+            try:
+                parsed_response = await response.json()
+            except Exception:
+                request_errors = True
+                try:
+                    parsed_response = str(await response.read())
+                    if len(parsed_response) > 100:
+                        parsed_response = f"{parsed_response[:100]} ... (truncated)"
+                except Exception:
+                    pass
+            if response.status not in [200, 201] or parsed_response is None:
+                request_errors = True
+                http_status = response.status
+    except Exception:
+        request_errors = True
+    if request_errors or parsed_response is None:
+        if try_count < 4:
+            try_count += 1
+            time_sleep = retry_sleep_time(try_count)
+            print(f"Error fetching data from {url}. HTTP status is {http_status}. "
+                  f"Retrying in {time_sleep:.1f}s.")
+            await asyncio.sleep(time_sleep)
+            return await generic_api_request(method=method, path_url=path_url, params=params,
+                                             client=client, try_count=try_count)
+        else:
+            print(f"Error fetching data from {url}. HTTP status is {http_status}. "
+                  f"Final msg: {parsed_response}.")
+            raise AltmarketsAPIError({"error": parsed_response})
+    return parsed_response
 
 
 KEYS = {

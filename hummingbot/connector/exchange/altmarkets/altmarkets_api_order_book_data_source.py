@@ -3,11 +3,10 @@
 import aiohttp
 import asyncio
 import json
-import random
 import logging
 import pandas as pd
 import time
-import ujson
+from decimal import Decimal
 from typing import (
     Any,
     AsyncIterable,
@@ -25,56 +24,9 @@ from hummingbot.logger import HummingbotLogger
 from hummingbot.connector.exchange.altmarkets.altmarkets_order_book import AltmarketsOrderBook
 from hummingbot.connector.exchange.altmarkets.altmarkets_constants import Constants
 from hummingbot.connector.exchange.altmarkets.altmarkets_utils import (
-    convert_to_exchange_trading_pair
+    convert_to_exchange_trading_pair,
+    generic_api_request,
 )
-
-
-async def api_request(method,
-                      path_url,
-                      params: Optional[Dict[str, Any]] = None,
-                      data=None,
-                      client=None,
-                      try_count: int = 0) -> Dict[str, Any]:
-    class AltmarketsAPIError(IOError):
-        def __init__(self, error_payload: Dict[str, Any]):
-            super().__init__(str(error_payload))
-            self.error_payload = error_payload
-    url = f"{Constants.EXCHANGE_ROOT_API}{path_url}"
-    headers = {"Content-Type": ("application/json" if method == "post" else "application/x-www-form-urlencoded")}
-    http_client = client if client is not None else aiohttp.ClientSession()
-    response_coro = http_client.request(
-        method=method.upper(), url=url, headers=headers, params=params, data=ujson.dumps(data), timeout=Constants.API_CALL_TIMEOUT
-    )
-
-    async with response_coro as response:
-        if response.status not in [200, 201]:
-            if try_count < 3:
-                try_count += 1
-                random.seed()
-                randSleep = 1 + float(random.randint(1, 10) / 100)
-                time_sleep = float(5 + float(randSleep * (1 + (try_count ** try_count))))
-                print(f"Error fetching data from {url}. HTTP status is {response.status}. Retrying in {time_sleep:.1f}s.")
-                await asyncio.sleep(time_sleep)
-                data = await api_request(method=method, path_url=path_url, params=params, data=None, client=client, try_count=try_count)
-                return data
-            try:
-                parsed_response = await response.json()
-            except Exception:
-                try:
-                    parsed_response = str(await response.read())
-                    if len(parsed_response) > 100:
-                        parsed_response = f"{parsed_response[:100]} ... (truncated)"
-                except Exception:
-                    parsed_response = None
-            raise IOError(f"Error fetching data from {url}. HTTP status is {response.status}. Final msg: {parsed_response}.")
-        try:
-            parsed_response = await response.json()
-        except Exception:
-            raise IOError(f"Error parsing data from {url}.")
-        if parsed_response is None:
-            print(f"Error received from {url}. Response is {parsed_response}.")
-            raise AltmarketsAPIError({"error": parsed_response})
-        return parsed_response
 
 
 class AltmarketsAPIOrderBookDataSource(OrderBookTrackerDataSource):
@@ -91,13 +43,19 @@ class AltmarketsAPIOrderBookDataSource(OrderBookTrackerDataSource):
         super().__init__(trading_pairs)
 
     @classmethod
-    async def get_last_traded_prices(cls, trading_pairs: List[str]) -> Dict[str, float]:
+    async def get_last_traded_prices(cls, trading_pairs: List[str]) -> Dict[str, Decimal]:
         results = dict()
         # Altmarkets rate limit is 100 https requests per 10 seconds
-        resp_json = await api_request("get", Constants.TICKER_URI)
-        for trading_pair in trading_pairs:
-            resp_record = [resp_json[symbol] for symbol in list(resp_json.keys()) if symbol == convert_to_exchange_trading_pair(trading_pair)][0]['ticker']
-            results[trading_pair] = float(resp_record["last"])
+        if len(trading_pairs) == 1:
+            for trading_pair in trading_pairs:
+                ex_pair = convert_to_exchange_trading_pair(trading_pair)
+                resp_json = await generic_api_request("get", Constants.TICKER_SINGLE_URI.format(trading_pair=ex_pair))
+                results[trading_pair] = Decimal(str(resp_json['ticker']["last"]))
+        else:
+            resp_json = await generic_api_request("get", Constants.TICKER_URI)
+            for trading_pair in trading_pairs:
+                ex_pair = convert_to_exchange_trading_pair(trading_pair)
+                results[trading_pair] = Decimal(str(resp_json[ex_pair]["ticker"]["last"]))
         return results
 
     # Deprecated get_mid_price function - mid price is pulled from order book now.
@@ -120,7 +78,7 @@ class AltmarketsAPIOrderBookDataSource(OrderBookTrackerDataSource):
     @staticmethod
     async def fetch_trading_pairs() -> List[str]:
         try:
-            products: List[Dict[str, Any]] = await api_request("get", Constants.SYMBOLS_URI)
+            products: List[Dict[str, Any]] = await generic_api_request("get", Constants.SYMBOLS_URI)
             return [
                 product["name"].replace("/", "-") for product in products
                 if product['state'] == "enabled"
@@ -137,10 +95,9 @@ class AltmarketsAPIOrderBookDataSource(OrderBookTrackerDataSource):
         # when type is set to "step0", the default value of "depth" is 150
         # params: Dict = {"symbol": trading_pair, "type": "step0"}
         # Altmarkets rate limit is 100 https requests per 10 seconds
+        depth_url = Constants.DEPTH_URI.format(trading_pair=convert_to_exchange_trading_pair(trading_pair))
         try:
-            data: Dict[str, Any] = await api_request("get",
-                                                     Constants.DEPTH_URI.format(trading_pair=convert_to_exchange_trading_pair(trading_pair)),
-                                                     client=client)
+            data: Dict[str, Any] = await generic_api_request("get", depth_url, client=client)
             return data
         except Exception:
             raise IOError(f"Error fetching Altmarkets market snapshot for {trading_pair}.")
