@@ -867,7 +867,7 @@ cdef class AltmarketsExchange(ExchangeBase):
             return []
         tasks = [self.execute_cancel(o.client_order_id) for o in open_orders]
         order_id_set = set([o.client_order_id for o in open_orders])
-        successful_cancellations = []
+        cancellation_results = []
         try:
             async with timeout(timeout_seconds):
                 cancellation_results = await safe_gather(*tasks, return_exceptions=True)
