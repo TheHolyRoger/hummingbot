@@ -72,6 +72,16 @@ from hummingbot.core.utils.estimate_fee import estimate_fee
 hm_logger = None
 s_decimal_0 = Decimal(0)
 s_decimal_NaN = Decimal("NaN")
+BROKER_ID = "HBOT"
+
+
+cdef str get_client_order_id(str order_side, object trading_pair):
+    cdef:
+        int64_t nonce = <int64_t> get_tracking_nonce()
+        object symbols = trading_pair.split("-")
+        str base = symbols[0].lower()
+        str quote = symbols[1].lower()
+    return f"{BROKER_ID}-{order_side.upper()}-{base}{quote}-{nonce}"
 
 
 cdef class AltmarketsExchangeTransactionTracker(TransactionTracker):
@@ -801,27 +811,18 @@ cdef class AltmarketsExchange(ExchangeBase):
             self.c_trigger_event(self.MARKET_ORDER_FAILURE_EVENT_TAG,
                                  MarketOrderFailureEvent(self._current_timestamp, order_id, order_type))
 
-    cdef str c_buy(self,
-                   str trading_pair,
-                   object amount,
-                   object order_type=OrderType.MARKET,
-                   object price=s_decimal_0,
-                   dict kwargs={}):
+    cdef str c_buy(self, str trading_pair, object amount, object order_type=OrderType.MARKET,
+                   object price=s_decimal_0, dict kwargs={}):
         cdef:
-            int64_t tracking_nonce = <int64_t> get_tracking_nonce()
-            str order_id = f"buy-{trading_pair}-{tracking_nonce}"
+            str order_id = get_client_order_id("buy", trading_pair)
 
         safe_ensure_future(self.create_order(order_id, trading_pair, amount, TradeType.BUY, order_type, price))
         return order_id
 
-    cdef str c_sell(self,
-                    str trading_pair,
-                    object amount,
-                    object order_type=OrderType.MARKET, object price=s_decimal_0,
-                    dict kwargs={}):
+    cdef str c_sell(self, str trading_pair, object amount, object order_type=OrderType.MARKET,
+                    object price=s_decimal_0, dict kwargs={}):
         cdef:
-            int64_t tracking_nonce = <int64_t> get_tracking_nonce()
-            str order_id = f"sell-{trading_pair}-{tracking_nonce}"
+            str order_id = get_client_order_id("sell", trading_pair)
         safe_ensure_future(self.create_order(order_id, trading_pair, amount, TradeType.SELL, order_type, price))
         return order_id
 
