@@ -145,7 +145,7 @@ cdef class AltmarketsExchange(ExchangeBase):
         self._trading_rules = {}
         self._trading_rules_polling_task = None
         self._tx_tracker = AltmarketsExchangeTransactionTracker(self)
-        self._throttler = Throttler(rate_limit = (20.0, 6.0))
+        self._throttler = Throttler(rate_limit = (10.0, 6.5))
 
     @property
     def name(self) -> str:
@@ -237,7 +237,7 @@ cdef class AltmarketsExchange(ExchangeBase):
 
     async def check_network(self) -> NetworkStatus:
         try:
-            await self._api_request(method="get", path_url=Constants.TIMESTAMP_URI)
+            await self._api_request(method="get", endpoint=Constants.TIMESTAMP_URI)
         except asyncio.CancelledError:
             raise
         except Exception as e:
@@ -262,7 +262,7 @@ cdef class AltmarketsExchange(ExchangeBase):
 
     async def _api_request(self,
                            method,
-                           path_url,
+                           endpoint,
                            params: Optional[Dict[str, Any]] = None,
                            data=None,
                            is_auth_required: bool = False,
@@ -270,36 +270,20 @@ cdef class AltmarketsExchange(ExchangeBase):
                            request_weight: int = 1) -> Dict[str, Any]:
         # Altmarkets rate limit is 100 https requests per 10 seconds
         async with self._throttler.weighted_task(request_weight=request_weight):
-            url = f"{Constants.EXCHANGE_ROOT_API}{path_url}"
-            client = await self._http_client()
-            headers = self._altmarkets_auth.get_headers() if is_auth_required else {}
-            if "Content-Type" not in list(headers.keys()):
-                headers["Content-Type"] = ("application/json" if method == "post"
-                                           else "application/x-www-form-urlencoded")
-
+            shared_client = await self._http_client()
             # aiohttp TestClient requires path instead of url
-            if isinstance(client, TestClient):
-                response_coro = client.request(
-                    method=method.upper(),
-                    path=f"/{path_url}",
-                    headers=headers,
-                    params=params,
-                    data=ujson.dumps(data),
-                    timeout=100
-                )
-            else:
-                response_coro = client.request(
-                    method=method.upper(),
-                    url=url,
-                    headers=headers,
-                    params=params,
-                    data=ujson.dumps(data),
-                    timeout=100
-                )
-
+            url = (f"/{endpoint}" if isinstance(shared_client, TestClient) else
+                   f"{Constants.EXCHANGE_ROOT_API}{endpoint}")
+            headers = (self._altmarkets_auth.get_headers() if is_auth_required else
+                       {"Content-Type": "application/json"})
+            response_coro = shared_client.request(
+                method=method.upper(), url=url, headers=headers, params=params,
+                data=ujson.dumps(data), timeout=100
+            )
             http_status, parsed_response, request_errors = None, None, False
             try:
                 async with response_coro as response:
+                    http_status = response.status
                     try:
                         parsed_response = await response.json()
                     except Exception:
@@ -312,7 +296,6 @@ cdef class AltmarketsExchange(ExchangeBase):
                             pass
                     if response.status not in [200, 201] or parsed_response is None:
                         request_errors = True
-                        http_status = response.status
             except Exception:
                 request_errors = True
             if request_errors or parsed_response is None:
@@ -322,13 +305,13 @@ cdef class AltmarketsExchange(ExchangeBase):
                     print(f"Error fetching data from {url}. HTTP status is {http_status}. "
                           f"Retrying in {time_sleep:.1f}s.")
                     await asyncio.sleep(time_sleep)
-                    return await self._api_request(method=method, path_url=path_url, params=params,
-                                                   data=data, is_auth_required = is_auth_required,
+                    return await self._api_request(method=method, endpoint=endpoint, params=params,
+                                                   data=data, is_auth_required=is_auth_required,
                                                    try_count=try_count, request_weight=request_weight)
                 else:
                     print(f"Error fetching data from {url}. HTTP status is {http_status}. "
                           f"Final msg: {parsed_response}.")
-                    raise AltmarketsAPIError({"error": parsed_response})
+                    raise AltmarketsAPIError({"error": parsed_response, "status": http_status})
             return parsed_response
 
     async def _update_balances(self):
@@ -340,7 +323,7 @@ cdef class AltmarketsExchange(ExchangeBase):
             str asset_name
             object balance
 
-        data = await self._api_request("get", path_url=Constants.ACCOUNTS_BALANCE_URI, is_auth_required=True)
+        data = await self._api_request("get", endpoint=Constants.ACCOUNTS_BALANCE_URI, is_auth_required=True)
         balances = data
         if len(balances) > 0:
             for balance_entry in balances:
@@ -383,7 +366,7 @@ cdef class AltmarketsExchange(ExchangeBase):
             int64_t last_tick = <int64_t>(self._last_timestamp / 60.0)
             int64_t current_tick = <int64_t>(self._current_timestamp / 60.0)
         if current_tick > last_tick or len(self._trading_rules) < 1:
-            exchange_info = await self._api_request("get", path_url=Constants.SYMBOLS_URI)
+            exchange_info = await self._api_request("get", endpoint=Constants.SYMBOLS_URI)
             trading_rules_list = self._format_trading_rules(exchange_info)
             self._trading_rules.clear()
             for trading_rule in trading_rules_list:
@@ -440,8 +423,8 @@ cdef class AltmarketsExchange(ExchangeBase):
           ]
         }
         """
-        path_url = Constants.LIST_ORDER_URI.format(exchange_order_id=exchange_order_id)
-        return await self._api_request("get", path_url=path_url, is_auth_required=True)
+        endpoint = Constants.LIST_ORDER_URI.format(exchange_order_id=exchange_order_id)
+        return await self._api_request("get", endpoint=endpoint, is_auth_required=True)
 
     async def _update_order_message(self, exchange_order_id, content, tracked_order):
         order_state = content.get("state")
@@ -734,7 +717,7 @@ cdef class AltmarketsExchange(ExchangeBase):
                           trade_type: TradeType,
                           order_type: OrderType,
                           price: Decimal) -> str:
-        path_url = Constants.ORDER_CREATION_URI
+        endpoint = Constants.ORDER_CREATION_URI
         side = "buy" if trade_type == TradeType.BUY else "sell"
         order_type_str = "limit" if order_type is OrderType.LIMIT else "market"
 
@@ -750,7 +733,7 @@ cdef class AltmarketsExchange(ExchangeBase):
             params["price"] = f"{price:f}"
         exchange_order = await self._api_request(
             "post",
-            path_url=path_url,
+            endpoint=endpoint,
             params=params,
             data=params,
             is_auth_required=True
@@ -830,10 +813,10 @@ cdef class AltmarketsExchange(ExchangeBase):
         tracked_order = self._in_flight_orders.get(order_id)
         if tracked_order is None:
             raise ValueError(f"Failed to cancel order - {order_id}. Order no longer tracked.")
-        path_url = Constants.ORDER_CANCEL_URI.format(exchange_order_id=tracked_order.exchange_order_id)
+        endpoint = Constants.ORDER_CANCEL_URI.format(exchange_order_id=tracked_order.exchange_order_id)
         order_state, errors = None, None
         try:
-            response = await self._api_request("post", path_url=path_url, is_auth_required=True)
+            response = await self._api_request("post", endpoint=endpoint, is_auth_required=True)
             if isinstance(response, dict) and "state" in list(response.keys()):
                 order_state = response["state"]
         except (AltmarketsAPIError, Exception) as e:

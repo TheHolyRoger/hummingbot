@@ -97,7 +97,7 @@ class AltmarketsAPIOrderBookDataSource(OrderBookTrackerDataSource):
         # Altmarkets rate limit is 100 https requests per 10 seconds
         depth_url = Constants.DEPTH_URI.format(trading_pair=convert_to_exchange_trading_pair(trading_pair))
         try:
-            data: Dict[str, Any] = await generic_api_request("get", depth_url, client=client)
+            data: Dict[str, Any] = await generic_api_request("get", depth_url, shared_client=client)
             return data
         except Exception:
             raise IOError(f"Error fetching Altmarkets market snapshot for {trading_pair}.")
