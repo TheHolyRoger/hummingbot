@@ -777,6 +777,7 @@ cdef class AltmarketsExchange(ExchangeBase):
                 self.logger().info(f"Created {order_type} {side_str} order {order_id} for {decimal_amount}"
                                    f" {trading_pair}.")
                 tracked_order.update_exchange_order_id(exchange_order_id)
+            await asyncio.sleep(0.1)
             self.c_trigger_event(event_tag,
                                  event_cls(
                                      self._current_timestamp, order_type, trading_pair,
