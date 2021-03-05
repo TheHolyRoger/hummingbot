@@ -1287,20 +1287,26 @@ cdef class PureMarketMakingStrategy(StrategyBase):
             bint market_trend_up
             bint market_trend_down
             bint allow_profitable = self._market_indicator_allow_profitable
+            object current_price = self.get_price()
 
         market_trend_up = indicator.c_trend_is_up()
         market_trend_down = indicator.c_trend_is_down()
+        signal_price_up = indicator.signal_price_up
 
         for buy in proposal.buys:
-            if market_trend_up in [None, False]:
+            buys_allowed = (market_trend_up is True or
+                            market_trend_up is None and buy.price < signal_price_up)
+            if not buys_allowed:
                 buy.size = min(buy.size, buy.size * indicator_orders_pct)
 
         proposal.buys = [o for o in proposal.buys if o.size > 0]
 
-        if not allow_profitable or self.trade_gain_pricethresh_sell == s_decimal_zero:
+        sells_blocked = ((not allow_profitable or
+                          self.trade_gain_pricethresh_sell == s_decimal_zero)
+                         and market_trend_down in [None, False])
+        if sells_blocked:
             for sell in proposal.sells:
-                if market_trend_down in [None, False]:
-                    sell.size = min(sell.size, sell.size * indicator_orders_pct)
+                sell.size = min(sell.size, sell.size * indicator_orders_pct)
 
         proposal.sells = [o for o in proposal.sells if o.size > 0]
     # TREND TRACKER

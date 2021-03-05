@@ -1,4 +1,6 @@
+from decimal import Decimal
 from hummingbot.data_feed.market_indicator_data_feed import MarketIndicatorDataFeed, NetworkStatus
+
 
 cdef class MarketIndicatorDelegate:
     def __init__(self,
@@ -22,6 +24,14 @@ cdef class MarketIndicatorDelegate:
 
     def trend_is_down(self) -> bool:
         return self.c_trend_is_down()
+
+    @property
+    def signal_price_up(self) -> Decimal:
+        return self._market_indicator_feed.last_price_up
+
+    @property
+    def signal_price_down(self) -> Decimal:
+        return self._market_indicator_feed.last_price_down
 
     cdef object c_trend_is_up(self):
         return self._market_indicator_feed.trend_is_up()

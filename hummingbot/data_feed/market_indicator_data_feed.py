@@ -39,6 +39,8 @@ class MarketIndicatorDataFeed(NetworkBase):
         self._fetch_trend_task: Optional[asyncio.Task] = None
         self._market_trend = None
         self._last_check = 0
+        self._last_price_up = Decimal('0')
+        self._last_price_down = Decimal('0')
         self._check_expiry = check_expiry
         self._expire_time = 300 if (expire_time is None or expire_time < 1) else (expire_time * 60)  # Seconds
         self._use_indicator_time = use_indicator_time
@@ -80,6 +82,14 @@ class MarketIndicatorDataFeed(NetworkBase):
             return False
         return None
 
+    @property
+    def last_price_up(self):
+        return self._last_price_up
+
+    @property
+    def last_price_down(self):
+        return self._last_price_down
+
     async def fetch_trend_loop(self):
         while True:
             try:
@@ -106,7 +116,14 @@ class MarketIndicatorDataFeed(NetworkBase):
                 rjson = await resp.json()
             respKeys = list(rjson.keys())
             if 'market_indicator' in respKeys:
-                self._market_trend = True if rjson['market_indicator'] == 'up' else False
+                if rjson['market_indicator'] == 'up':
+                    self._market_trend = True
+                    self._last_price_up = Decimal(str(rjson['price']))
+                    self._last_price_down = Decimal('0')
+                else:
+                    self._market_trend = False
+                    self._last_price_up = Decimal('0')
+                    self._last_price_down = Decimal(str(rjson['price']))
                 time_key = None
                 if "timestamp" in respKeys and self._use_indicator_time:
                     time_key = "timestamp"
