@@ -3,22 +3,26 @@
 import asyncio
 import logging
 from typing import (
+    Optional,
     List,
-    Optional
 )
 from hummingbot.core.data_type.user_stream_tracker_data_source import UserStreamTrackerDataSource
 from hummingbot.logger import HummingbotLogger
-from hummingbot.core.data_type.user_stream_tracker import UserStreamTracker
+from hummingbot.core.data_type.user_stream_tracker import (
+    UserStreamTracker
+)
 from hummingbot.core.utils.async_utils import (
     safe_ensure_future,
     safe_gather,
 )
-from hummingbot.connector.exchange.altmarkets.altmarkets_api_user_stream_data_source import AltmarketsAPIUserStreamDataSource
+from hummingbot.connector.exchange.altmarkets.altmarkets_api_user_stream_data_source import \
+    AltmarketsAPIUserStreamDataSource
 from hummingbot.connector.exchange.altmarkets.altmarkets_auth import AltmarketsAuth
+from hummingbot.connector.exchange.altmarkets.altmarkets_constants import Constants
 
 
 class AltmarketsUserStreamTracker(UserStreamTracker):
-    _bust_logger: Optional[HummingbotLogger] = None
+    _cbpust_logger: Optional[HummingbotLogger] = None
 
     @classmethod
     def logger(cls) -> HummingbotLogger:
@@ -26,26 +30,27 @@ class AltmarketsUserStreamTracker(UserStreamTracker):
             cls._bust_logger = logging.getLogger(__name__)
         return cls._bust_logger
 
-    def __init__(
-        self,
-        altmarkets_auth: Optional[AltmarketsAuth] = None,
-        trading_pairs: Optional[List[str]] = [],
-    ):
+    def __init__(self,
+                 altmarkets_auth: Optional[AltmarketsAuth] = None,
+                 trading_pairs: Optional[List[str]] = []):
         super().__init__()
         self._altmarkets_auth: AltmarketsAuth = altmarkets_auth
+        self._trading_pairs: List[str] = trading_pairs
         self._ev_loop: asyncio.events.AbstractEventLoop = asyncio.get_event_loop()
-        self._trading_pairs = trading_pairs
         self._data_source: Optional[UserStreamTrackerDataSource] = None
         self._user_stream_tracking_task: Optional[asyncio.Task] = None
 
     @property
     def data_source(self) -> UserStreamTrackerDataSource:
         """
-
+        *required
+        Initializes a user stream data source (user specific order diffs from live socket stream)
+        :return: OrderBookTrackerDataSource
         """
         if not self._data_source:
             self._data_source = AltmarketsAPIUserStreamDataSource(
-                altmarkets_auth = self._altmarkets_auth, trading_pairs = self._trading_pairs
+                altmarkets_auth=self._altmarkets_auth,
+                trading_pairs=self._trading_pairs
             )
         return self._data_source
 
@@ -55,7 +60,7 @@ class AltmarketsUserStreamTracker(UserStreamTracker):
         *required
         Name of the current exchange
         """
-        return "altmarkets"
+        return Constants.EXCHANGE_NAME
 
     async def start(self):
         """
