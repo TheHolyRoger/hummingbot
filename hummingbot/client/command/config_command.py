@@ -21,6 +21,9 @@ from hummingbot.client.config.security import Security
 from hummingbot.client.config.config_var import ConfigVar
 from hummingbot.core.utils.async_utils import safe_ensure_future
 from hummingbot.model.inventory_cost import InventoryCost
+from hummingbot.strategy.the_money_pit import (
+    TheMoneyPitStrategy
+)
 from hummingbot.strategy.pure_market_making import (
     PureMarketMakingStrategy
 )
@@ -184,6 +187,7 @@ class ConfigCommand:
             for config in missings:
                 self._notify(f"{config.key}: {str(config.value)}")
             if isinstance(self.strategy, PureMarketMakingStrategy) or \
+               isinstance(self.strategy, TheMoneyPitStrategy) or \
                isinstance(self.strategy, PerpetualMarketMakingStrategy):
                 updated = ConfigCommand.update_running_mm(self.strategy, key, config_var.value)
                 if updated:

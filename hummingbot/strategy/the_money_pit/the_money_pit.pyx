@@ -30,7 +30,7 @@ from .data_types import (
     Proposal,
     PriceSize
 )
-from .pure_market_making_order_tracker import PureMarketMakingOrderTracker
+from .the_money_pit_order_tracker import TheMoneyPitOrderTracker
 
 from .asset_price_delegate cimport AssetPriceDelegate
 from .asset_price_delegate import AssetPriceDelegate
@@ -50,7 +50,7 @@ s_decimal_neg_one = Decimal(-1)
 pmm_logger = None
 
 
-cdef class PureMarketMakingStrategy(StrategyBase):
+cdef class TheMoneyPitStrategy(StrategyBase):
     OPTION_LOG_CREATE_ORDER = 1 << 3
     OPTION_LOG_MAKER_ORDER_FILLED = 1 << 4
     OPTION_LOG_STATUS_REPORT = 1 << 5
@@ -124,7 +124,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
             raise ValueError("Parameter price_ceiling cannot be lower than price_floor.")
 
         super().__init__()
-        self._sb_order_tracker = PureMarketMakingOrderTracker()
+        self._sb_order_tracker = TheMoneyPitOrderTracker()
         self._market_info = market_info
         self._bid_spread = bid_spread
         self._ask_spread = ask_spread

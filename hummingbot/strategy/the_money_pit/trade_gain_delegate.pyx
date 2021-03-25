@@ -2,7 +2,7 @@ import time
 from decimal import Decimal
 from hummingbot.core.data_type.trade import Trade
 from hummingbot.core.event.events import TradeType
-from hummingbot.strategy.pure_market_making.pure_market_making import PureMarketMakingStrategy
+from hummingbot.strategy.the_money_pit.the_money_pit import TheMoneyPitStrategy
 
 
 s_decimal_zero = Decimal(0)
@@ -10,8 +10,8 @@ s_decimal_zero = Decimal(0)
 
 cdef class TradeGainDelegate():
     def __init__(self,
-                 strategy: PureMarketMakingStrategy = None):
-        self._strat: PureMarketMakingStrategy = strategy
+                 strategy: TheMoneyPitStrategy = None):
+        self._strat: TheMoneyPitStrategy = strategy
         self._filtered_trades = {}
         self._recent_buys = 0
         self._recent_buys_cf = 0

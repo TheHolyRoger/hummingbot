@@ -4,7 +4,7 @@ from libc.stdint cimport int64_t
 from hummingbot.strategy.strategy_base cimport StrategyBase
 
 
-cdef class PureMarketMakingStrategy(StrategyBase):
+cdef class TheMoneyPitStrategy(StrategyBase):
     cdef:
         object _market_info
 

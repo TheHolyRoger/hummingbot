@@ -1,10 +1,10 @@
-from hummingbot.strategy.pure_market_making.pure_market_making import PureMarketMakingStrategy
-from hummingbot.strategy.pure_market_making.pure_market_making cimport PureMarketMakingStrategy
+from hummingbot.strategy.the_money_pit.the_money_pit import TheMoneyPitStrategy
+from hummingbot.strategy.the_money_pit.the_money_pit cimport TheMoneyPitStrategy
 
 
 cdef class TradeGainDelegate:
     cdef:
-        PureMarketMakingStrategy _strat
+        TheMoneyPitStrategy _strat
         dict _filtered_trades
         int _recent_buys
         int _recent_buys_cf

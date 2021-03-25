@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 
-from .pure_market_making import PureMarketMakingStrategy
+from .the_money_pit import TheMoneyPitStrategy
 from .asset_price_delegate import AssetPriceDelegate
 from .order_book_asset_price_delegate import OrderBookAssetPriceDelegate
 from .api_asset_price_delegate import APIAssetPriceDelegate
 from .inventory_cost_price_delegate import InventoryCostPriceDelegate
 from .market_indicator_delegate import MarketIndicatorDelegate
 __all__ = [
-    PureMarketMakingStrategy,
+    TheMoneyPitStrategy,
     AssetPriceDelegate,
     OrderBookAssetPriceDelegate,
     APIAssetPriceDelegate,

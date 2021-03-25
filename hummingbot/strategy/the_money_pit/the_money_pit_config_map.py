@@ -23,7 +23,7 @@ from typing import Optional
 
 
 def maker_trading_pair_prompt():
-    exchange = pure_market_making_config_map.get("exchange").value
+    exchange = the_money_pit_config_map.get("exchange").value
     example = EXAMPLE_PAIRS.get(exchange)
     return "Enter the token trading pair you would like to trade on %s%s >>> " \
            % (exchange, f" (e.g. {example})" if example else "")
@@ -31,13 +31,13 @@ def maker_trading_pair_prompt():
 
 # strategy specific validators
 def validate_exchange_trading_pair(value: str) -> Optional[str]:
-    exchange = pure_market_making_config_map.get("exchange").value
+    exchange = the_money_pit_config_map.get("exchange").value
     return validate_market_trading_pair(exchange, value)
 
 
 async def order_amount_prompt() -> str:
-    exchange = pure_market_making_config_map["exchange"].value
-    trading_pair = pure_market_making_config_map["market"].value
+    exchange = the_money_pit_config_map["exchange"].value
+    trading_pair = the_money_pit_config_map["market"].value
     base_asset, quote_asset = trading_pair.split("-")
     min_amount = await minimum_order_amount(exchange, trading_pair)
     return f"What is the amount of {base_asset} per order? (minimum {min_amount}) >>> "
@@ -45,8 +45,8 @@ async def order_amount_prompt() -> str:
 
 async def validate_order_amount(value: str) -> Optional[str]:
     try:
-        exchange = pure_market_making_config_map["exchange"].value
-        trading_pair = pure_market_making_config_map["market"].value
+        exchange = the_money_pit_config_map["exchange"].value
+        trading_pair = the_money_pit_config_map["market"].value
         min_amount = await minimum_order_amount(exchange, trading_pair)
         if Decimal(value) < min_amount:
             return f"Order amount must be at least {min_amount}."
@@ -61,33 +61,33 @@ def validate_price_source(value: str) -> Optional[str]:
 
 def on_validate_price_source(value: str):
     if value != "external_market":
-        pure_market_making_config_map["price_source_exchange"].value = None
-        pure_market_making_config_map["price_source_market"].value = None
-        pure_market_making_config_map["take_if_crossed"].value = None
+        the_money_pit_config_map["price_source_exchange"].value = None
+        the_money_pit_config_map["price_source_market"].value = None
+        the_money_pit_config_map["take_if_crossed"].value = None
     if value != "custom_api":
-        pure_market_making_config_map["price_source_custom_api"].value = None
+        the_money_pit_config_map["price_source_custom_api"].value = None
     else:
-        pure_market_making_config_map["price_type"].value = None
+        the_money_pit_config_map["price_type"].value = None
 
 
 def price_source_market_prompt() -> str:
-    external_market = pure_market_making_config_map.get("price_source_exchange").value
+    external_market = the_money_pit_config_map.get("price_source_exchange").value
     return f'Enter the token trading pair on {external_market} >>> '
 
 
 def validate_price_source_exchange(value: str) -> Optional[str]:
-    if value == pure_market_making_config_map.get("exchange").value:
+    if value == the_money_pit_config_map.get("exchange").value:
         return "Price source exchange cannot be the same as maker exchange."
     return validate_exchange(value)
 
 
 def on_validated_price_source_exchange(value: str):
     if value is None:
-        pure_market_making_config_map["price_source_market"].value = None
+        the_money_pit_config_map["price_source_market"].value = None
 
 
 def validate_price_source_market(value: str) -> Optional[str]:
-    market = pure_market_making_config_map.get("price_source_exchange").value
+    market = the_money_pit_config_map.get("price_source_exchange").value
     return validate_market_trading_pair(market, value)
 
 
@@ -102,18 +102,18 @@ def validate_price_floor_ceiling(value: str) -> Optional[str]:
 
 def on_validated_price_type(value: str):
     if value == 'inventory_cost':
-        pure_market_making_config_map["inventory_price"].value = None
+        the_money_pit_config_map["inventory_price"].value = None
 
 
 def exchange_on_validated(value: str):
     required_exchanges.append(value)
 
 
-pure_market_making_config_map = {
+the_money_pit_config_map = {
     "strategy":
         ConfigVar(key="strategy",
                   prompt=None,
-                  default="pure_market_making"),
+                  default="the_money_pit"),
     "exchange":
         ConfigVar(key="exchange",
                   prompt="Enter your maker spot connector >>> ",
@@ -208,7 +208,7 @@ pure_market_making_config_map = {
         ConfigVar(key="order_level_amount",
                   prompt="How much do you want to increase or decrease the order size for each "
                          "additional order? (decrease < 0 > increase) >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("order_levels").value > 1,
+                  required_if=lambda: the_money_pit_config_map.get("order_levels").value > 1,
                   type_str="decimal",
                   validator=lambda v: validate_decimal(v),
                   default=0),
@@ -216,7 +216,7 @@ pure_market_making_config_map = {
         ConfigVar(key="order_level_spread",
                   prompt="Enter the price increments (as percentage) for subsequent "
                          "orders? (Enter 1 to indicate 1%) >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("order_levels").value > 1,
+                  required_if=lambda: the_money_pit_config_map.get("order_levels").value > 1,
                   type_str="decimal",
                   validator=lambda v: validate_decimal(v, 0, 100, inclusive=False),
                   default=Decimal("1")),
@@ -229,7 +229,7 @@ pure_market_making_config_map = {
     "inventory_target_base_pct":
         ConfigVar(key="inventory_target_base_pct",
                   prompt="What is your target base asset percentage? Enter 50 for 50% >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("inventory_skew_enabled").value,
+                  required_if=lambda: the_money_pit_config_map.get("inventory_skew_enabled").value,
                   type_str="decimal",
                   validator=lambda v: validate_decimal(v, 0, 100),
                   default=Decimal("50")),
@@ -237,7 +237,7 @@ pure_market_making_config_map = {
         ConfigVar(key="inventory_range_multiplier",
                   prompt="What is your tolerable range of inventory around the target, "
                          "expressed in multiples of your total order size? ",
-                  required_if=lambda: pure_market_making_config_map.get("inventory_skew_enabled").value,
+                  required_if=lambda: the_money_pit_config_map.get("inventory_skew_enabled").value,
                   type_str="decimal",
                   validator=lambda v: validate_decimal(v, min_value=0, inclusive=False),
                   default=Decimal("1")),
@@ -246,7 +246,7 @@ pure_market_making_config_map = {
                   prompt="What is the price of your base asset inventory? ",
                   type_str="decimal",
                   validator=lambda v: validate_decimal(v, min_value=Decimal("0"), inclusive=True),
-                  required_if=lambda: pure_market_making_config_map.get("price_type").value == "inventory_cost",
+                  required_if=lambda: the_money_pit_config_map.get("price_type").value == "inventory_cost",
                   default=Decimal("1"),
                   ),
     "filled_order_delay":
@@ -266,7 +266,7 @@ pure_market_making_config_map = {
         ConfigVar(key="hanging_orders_cancel_pct",
                   prompt="At what spread percentage (from mid price) will hanging orders be canceled? "
                          "(Enter 1 to indicate 1%) >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("hanging_orders_enabled").value,
+                  required_if=lambda: the_money_pit_config_map.get("hanging_orders_enabled").value,
                   type_str="decimal",
                   default=Decimal("10"),
                   validator=lambda v: validate_decimal(v, 0, 100, inclusive=False)),
@@ -281,7 +281,7 @@ pure_market_making_config_map = {
                   prompt="How deep do you want to go into the order book for calculating "
                          "the top ask, ignoring dust orders on the top "
                          "(expressed in base asset amount)? >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("order_optimization_enabled").value,
+                  required_if=lambda: the_money_pit_config_map.get("order_optimization_enabled").value,
                   type_str="decimal",
                   validator=lambda v: validate_decimal(v, min_value=0),
                   default=0),
@@ -290,7 +290,7 @@ pure_market_making_config_map = {
                   prompt="How deep do you want to go into the order book for calculating "
                          "the top bid, ignoring dust orders on the top "
                          "(expressed in base asset amount)? >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("order_optimization_enabled").value,
+                  required_if=lambda: the_money_pit_config_map.get("order_optimization_enabled").value,
                   type_str="decimal",
                   validator=lambda v: validate_decimal(v, min_value=0),
                   default=0),
@@ -312,7 +312,7 @@ pure_market_making_config_map = {
                   prompt="Which price type to use? ("
                          "mid_price/last_price/last_own_trade_price/best_bid/best_ask/inventory_cost) >>> ",
                   type_str="str",
-                  required_if=lambda: pure_market_making_config_map.get("price_source").value != "custom_api",
+                  required_if=lambda: the_money_pit_config_map.get("price_source").value != "custom_api",
                   default="mid_price",
                   on_validated=on_validated_price_type,
                   validator=lambda s: None if s in {"mid_price",
@@ -326,27 +326,27 @@ pure_market_making_config_map = {
     "price_source_exchange":
         ConfigVar(key="price_source_exchange",
                   prompt="Enter external price source exchange name >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("price_source").value == "external_market",
+                  required_if=lambda: the_money_pit_config_map.get("price_source").value == "external_market",
                   type_str="str",
                   validator=validate_price_source_exchange,
                   on_validated=on_validated_price_source_exchange),
     "price_source_market":
         ConfigVar(key="price_source_market",
                   prompt=price_source_market_prompt,
-                  required_if=lambda: pure_market_making_config_map.get("price_source").value == "external_market",
+                  required_if=lambda: the_money_pit_config_map.get("price_source").value == "external_market",
                   type_str="str",
                   validator=validate_price_source_market),
     "take_if_crossed":
         ConfigVar(key="take_if_crossed",
                   prompt="Do you want to take the best order if orders cross the orderbook? ((Yes/No) >>> ",
-                  required_if=lambda: pure_market_making_config_map.get(
+                  required_if=lambda: the_money_pit_config_map.get(
                       "price_source").value == "external_market",
                   type_str="bool",
                   validator=validate_bool),
     "price_source_custom_api":
         ConfigVar(key="price_source_custom_api",
                   prompt="Enter pricing API URL >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("price_source").value == "custom_api",
+                  required_if=lambda: the_money_pit_config_map.get("price_source").value == "custom_api",
                   type_str="str"),
     "order_override":
         ConfigVar(key="order_override",
@@ -364,49 +364,49 @@ pure_market_making_config_map = {
     "trade_gain_hours_buys":
         ConfigVar(key="trade_gain_hours_buys",
                   prompt="How many hours do you want the profit tracking window to be (buys)? >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("trade_gain_enabled").value is True,
+                  required_if=lambda: the_money_pit_config_map.get("trade_gain_enabled").value is True,
                   type_str="decimal",
                   validator=lambda v: validate_decimal(v, -1, 10000, True),
                   default=Decimal(4)),
     "trade_gain_hours_sells":
         ConfigVar(key="trade_gain_hours_sells",
                   prompt="How many hours do you want the profit tracking window to be (sells)? >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("trade_gain_enabled").value is True,
+                  required_if=lambda: the_money_pit_config_map.get("trade_gain_enabled").value is True,
                   type_str="decimal",
                   validator=lambda v: validate_decimal(v, -1, 10000, True),
                   default=Decimal(4)),
     "trade_gain_trades":
         ConfigVar(key="trade_gain_trades",
                   prompt="How many trades do you want to consider for tracking within the window? >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("trade_gain_enabled").value is True,
+                  required_if=lambda: the_money_pit_config_map.get("trade_gain_enabled").value is True,
                   type_str="int",
                   validator=lambda v: validate_int(v, min_value=0, inclusive=True),
                   default=1),
     "trade_gain_allowed_loss":
         ConfigVar(key="trade_gain_allowed_loss",
                   prompt="What is your accepted loss? (Enter 20 to indicate 20%) >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("trade_gain_enabled").value is True,
+                  required_if=lambda: the_money_pit_config_map.get("trade_gain_enabled").value is True,
                   type_str="decimal",
                   validator=lambda v: validate_decimal(v, -100, 100, True),
                   default=Decimal(20)),
     "trade_gain_profit_wanted":
         ConfigVar(key="trade_gain_profit_wanted",
                   prompt="What is your desired profit? (Enter 20 to indicate 20%) >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("trade_gain_enabled").value is True,
+                  required_if=lambda: the_money_pit_config_map.get("trade_gain_enabled").value is True,
                   type_str="decimal",
                   validator=lambda v: validate_decimal(v, -100, 100, True),
                   default=Decimal(20)),
     "trade_gain_ownside_enabled":
         ConfigVar(key="trade_gain_ownside_enabled",
                   prompt="Do you want to include tracking highest sells and lowest buys? (Yes/No) >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("trade_gain_enabled").value is True,
+                  required_if=lambda: the_money_pit_config_map.get("trade_gain_enabled").value is True,
                   type_str="bool",
                   validator=validate_bool,
                   default=False),
     "trade_gain_ownside_allowedloss":
         ConfigVar(key="trade_gain_ownside_allowedloss",
                   prompt="What is your loss margin on high-sells/low-buys? (Enter 20 to indicate 20%) >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("trade_gain_ownside_enabled").value is True,
+                  required_if=lambda: the_money_pit_config_map.get("trade_gain_ownside_enabled").value is True,
                   type_str="decimal",
                   validator=lambda v: validate_decimal(v, -100, 100, True),
                   default=Decimal(20)),
@@ -419,14 +419,14 @@ pure_market_making_config_map = {
     "trade_gain_careful_limittrades":
         ConfigVar(key="trade_gain_careful_limittrades",
                   prompt="What is your desired trade threshold for careful mode? >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("trade_gain_careful_enabled").value is True,
+                  required_if=lambda: the_money_pit_config_map.get("trade_gain_careful_enabled").value is True,
                   type_str="int",
                   validator=lambda v: validate_int(v, min_value=0, inclusive=True),
                   default=3),
     "trade_gain_careful_hours":
         ConfigVar(key="trade_gain_careful_hours",
                   prompt="How many hours do you want the careful window to be? >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("trade_gain_careful_enabled").value is True,
+                  required_if=lambda: the_money_pit_config_map.get("trade_gain_careful_enabled").value is True,
                   type_str="decimal",
                   validator=lambda v: validate_decimal(v, -1, 10000, True),
                   default=Decimal(4)),
@@ -447,14 +447,14 @@ pure_market_making_config_map = {
     "trade_gain_profit_selloff":
         ConfigVar(key="trade_gain_profit_selloff",
                   prompt="What is your profit percentage at which to sell-off? (Enter 20 to indicate 20%) >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("trade_gain_enabled").value is True,
+                  required_if=lambda: the_money_pit_config_map.get("trade_gain_enabled").value is True,
                   type_str="decimal",
                   validator=lambda v: validate_decimal(v, 0, 100, True),
                   default=Decimal(0)),
     "trade_gain_profit_buyin":
         ConfigVar(key="trade_gain_profit_buyin",
                   prompt="What is the percentage below the sell-off at which to buy back in? (Enter 20 to indicate 20%) >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("trade_gain_enabled").value is True,
+                  required_if=lambda: the_money_pit_config_map.get("trade_gain_enabled").value is True,
                   type_str="decimal",
                   validator=lambda v: validate_decimal(v, 0, 100, True),
                   default=Decimal(0)),
@@ -467,17 +467,17 @@ pure_market_making_config_map = {
     "market_indicator_url":
         ConfigVar(key="market_indicator_url",
                   prompt="What is the URL of your indicator API? >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("market_indicator_enabled").value is True,
+                  required_if=lambda: the_money_pit_config_map.get("market_indicator_enabled").value is True,
                   type_str="str"),
     "market_indicator_apikey":
         ConfigVar(key="market_indicator_apikey",
                   prompt="What is your indicator API key? >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("market_indicator_enabled").value is True,
+                  required_if=lambda: the_money_pit_config_map.get("market_indicator_enabled").value is True,
                   type_str="str"),
     "market_indicator_refresh_time":
         ConfigVar(key="market_indicator_refresh_time",
                   prompt="What is your indicator refresh time >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("market_indicator_enabled").value is True,
+                  required_if=lambda: the_money_pit_config_map.get("market_indicator_enabled").value is True,
                   type_str="float",
                   validator=lambda v: validate_decimal(v, min_value=0, inclusive=False),
                   default=60),
@@ -485,42 +485,42 @@ pure_market_making_config_map = {
         ConfigVar(key="market_indicator_reduce_orders_to_pct",
                   prompt="What size in percentage would you like to reduce orders to based on the trend?"
                          "(Enter 0 to stop orders or 1 to indicate 1%) >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("market_indicator_enabled").value is True,
+                  required_if=lambda: the_money_pit_config_map.get("market_indicator_enabled").value is True,
                   type_str="decimal",
                   validator=lambda v: validate_decimal(v, 0, 100, inclusive=True),
                   default=Decimal("0")),
     "market_indicator_allow_profitable":
         ConfigVar(key="market_indicator_allow_profitable",
                   prompt="Allow profitable trades even with bad signal? (Yes/No) >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("market_indicator_enabled").value is True,
+                  required_if=lambda: the_money_pit_config_map.get("market_indicator_enabled").value is True,
                   type_str="bool",
                   validator=validate_bool,
                   default=False),
     "market_indicator_disable_expired":
         ConfigVar(key="market_indicator_disable_expired",
                   prompt="Disable trading with expired signal? (Yes/No) >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("market_indicator_enabled").value is True,
+                  required_if=lambda: the_money_pit_config_map.get("market_indicator_enabled").value is True,
                   type_str="bool",
                   validator=validate_bool,
                   default=False),
     "market_indicator_expiry_minutes_soft":
         ConfigVar(key="market_indicator_expiry_minutes_soft",
                   prompt="How many minutes should the indicator signal expire after (soft)? >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("market_indicator_enabled").value is True,
+                  required_if=lambda: the_money_pit_config_map.get("market_indicator_enabled").value is True,
                   type_str="int",
                   validator=lambda v: validate_int(v, min_value=0, inclusive=True),
                   default=5),
     "market_indicator_expiry_minutes_hard":
         ConfigVar(key="market_indicator_expiry_minutes_hard",
                   prompt="How many minutes should the indicator signal expire after (hard)? >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("market_indicator_enabled").value is True,
+                  required_if=lambda: the_money_pit_config_map.get("market_indicator_enabled").value is True,
                   type_str="int",
                   validator=lambda v: validate_int(v, min_value=0, inclusive=True),
                   default=5),
     "market_indicator_use_apitime":
         ConfigVar(key="market_indicator_use_apitime",
                   prompt="Use API supplied indicator time for expiry check? (Yes/No) >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("market_indicator_enabled").value is True,
+                  required_if=lambda: the_money_pit_config_map.get("market_indicator_enabled").value is True,
                   type_str="bool",
                   validator=validate_bool,
                   default=False),
