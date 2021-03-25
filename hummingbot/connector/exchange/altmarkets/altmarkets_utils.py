@@ -136,7 +136,11 @@ async def api_call_with_retries(method,
             return await api_call_with_retries(method=method, endpoint=endpoint, params=params,
                                                shared_client=shared_client, try_count=try_count)
         else:
-            raise AltmarketsAPIError({"error": parsed_response, "status": http_status})
+            raise AltmarketsAPIError({"errors": parsed_response, "status": http_status})
+    if "errors" in parsed_response or "error" in parsed_response:
+        if "error" in parsed_response and "errors" not in parsed_response:
+            parsed_response['errors'] = parsed_response['error']
+        raise AltmarketsAPIError(parsed_response)
     return parsed_response
 
 

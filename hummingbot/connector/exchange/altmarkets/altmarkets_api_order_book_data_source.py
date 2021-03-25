@@ -76,7 +76,7 @@ class AltmarketsAPIOrderBookDataSource(OrderBookTrackerDataSource):
                                                                         params={"limit": 300})
             return orderbook_response
         except AltmarketsAPIError as e:
-            err = e.error_payload.get('error', e.error_payload)
+            err = e.error_payload.get('errors', e.error_payload)
             raise IOError(
                 f"Error fetching OrderBook for {trading_pair} at {Constants.EXCHANGE_NAME}. "
                 f"HTTP status is {e.error_payload['status']}. Error is {err.get('message', str(err))}.")

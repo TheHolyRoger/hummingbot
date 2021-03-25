@@ -341,8 +341,10 @@ class AltmarketsExchange(ExchangeBase):
                     return await self._api_request(method=method, endpoint=endpoint, params=params,
                                                    is_auth_required=is_auth_required, try_count=try_count)
                 else:
-                    raise AltmarketsAPIError({"error": parsed_response, "status": http_status})
-            if "error" in parsed_response:
+                    raise AltmarketsAPIError({"errors": parsed_response, "status": http_status})
+            if "errors" in parsed_response or "error" in parsed_response:
+                if "error" in parsed_response and "errors" not in parsed_response:
+                    parsed_response['errors'] = parsed_response['error']
                 raise AltmarketsAPIError(parsed_response)
             return parsed_response
 
@@ -421,8 +423,6 @@ class AltmarketsExchange(ExchangeBase):
         :param order_type: The order type
         :param price: The order price
         """
-        if not order_type.is_limit_type():
-            raise Exception(f"Unsupported order type: {order_type}")
         trading_rule = self._trading_rules[trading_pair]
 
         amount = self.quantize_order_amount(trading_pair, amount)
@@ -434,9 +434,11 @@ class AltmarketsExchange(ExchangeBase):
         api_params = {"market": convert_to_exchange_trading_pair(trading_pair),
                       "side": trade_type.name.lower(),
                       "ord_type": order_type_str,
-                      "price": f"{price:f}",
+                      # "price": f"{price:f}",
                       "volume": f"{amount:f}",
                       }
+        if order_type is not OrderType.MARKET:
+            api_params['price'] = f"{price:f}"
         # if order_type is OrderType.LIMIT_MAKER:
         #     api_params["postOnly"] = "true"
         self.start_tracking_order(order_id, None, trading_pair, trade_type, price, amount, order_type)
@@ -458,8 +460,11 @@ class AltmarketsExchange(ExchangeBase):
                                event_cls(self.current_timestamp, order_type, trading_pair, amount, price, order_id))
         except asyncio.CancelledError:
             raise
-        except AltmarketsAPIError as e:
-            error_reason = e.error_payload.get('error', {}).get('message')
+        except Exception as e:
+            if isinstance(e, AltmarketsAPIError):
+                error_reason = e.error_payload.get('errors', {}).get('message', e.error_payload.get('errors'))
+            else:
+                error_reason = str(e)
             self.stop_tracking_order(order_id)
             self.logger().network(
                 f"Error submitting {trade_type.name} {order_type.name} order to {Constants.EXCHANGE_NAME} for "
@@ -524,7 +529,7 @@ class AltmarketsExchange(ExchangeBase):
         except asyncio.CancelledError:
             raise
         except AltmarketsAPIError as e:
-            errors_found = e.error_payload.get('error', e.error_payload)
+            errors_found = e.error_payload.get('errors', e.error_payload)
             order_state = errors_found.get("state", None)
             if order_state is None:
                 self._order_not_found_records[order_id] = self._order_not_found_records.get(order_id, 0) + 1
@@ -598,7 +603,9 @@ class AltmarketsExchange(ExchangeBase):
             tracked_orders = list(self._in_flight_orders.values())
             tasks = []
             for tracked_order in tracked_orders:
-                exchange_order_id = await tracked_order.get_exchange_order_id()
+                if tracked_order.exchange_order_id is None:
+                    await tracked_order.get_exchange_order_id()
+                exchange_order_id = tracked_order.exchange_order_id
                 tasks.append(self._api_request("GET",
                                                Constants.ENDPOINT["ORDER_STATUS"].format(id=exchange_order_id),
                                                is_auth_required=True))
@@ -607,7 +614,7 @@ class AltmarketsExchange(ExchangeBase):
             for response, tracked_order in zip(responses, tracked_orders):
                 client_order_id = tracked_order.client_order_id
                 if isinstance(response, AltmarketsAPIError):
-                    err = response.error_payload.get('error', response.error_payload).get('errors', None)
+                    err = response.error_payload.get('errors', response.error_payload)
                     if "record.not_found" in err:
                         self._order_not_found_records[client_order_id] = \
                             self._order_not_found_records.get(client_order_id, 0) + 1
@@ -686,7 +693,8 @@ class AltmarketsExchange(ExchangeBase):
 
         tracked_orders = list(self._in_flight_orders.values())
         for order in tracked_orders:
-            await order.get_exchange_order_id()
+            if order.exchange_order_id is None:
+                await order.get_exchange_order_id()
         track_order = [o for o in tracked_orders if exchange_order_id == o.exchange_order_id]
 
         if not track_order:
