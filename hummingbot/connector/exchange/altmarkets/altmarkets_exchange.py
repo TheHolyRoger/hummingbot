@@ -12,6 +12,7 @@ import aiohttp
 import math
 import time
 import ujson
+import traceback
 from async_timeout import timeout
 
 from hummingbot.core.network_iterator import NetworkStatus
@@ -667,8 +668,11 @@ class AltmarketsExchange(ExchangeBase):
         tracked_order = track_order[0]
         # Estimate fee
         order_msg["trade_fee"] = self.estimate_fee_pct(tracked_order.order_type is OrderType.LIMIT_MAKER)
-        updated = tracked_order.update_with_order_update(order_msg)
-
+        try:
+            updated = tracked_order.update_with_order_update(order_msg)
+        except Exception as e:
+            self.logger().error(f"Error in order update for {tracked_order.exchange_order_id}. Message: {order_msg}\n{e}")
+            traceback.print_exc()
         if updated:
             safe_ensure_future(self._trigger_order_fill(tracked_order, order_msg))
         elif tracked_order.is_cancelled:
