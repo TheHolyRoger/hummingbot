@@ -91,10 +91,12 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                  market_indicator_delegate: MarketIndicatorDelegate = None,
                  market_indicator_reduce_orders_to_pct: Decimal = s_decimal_zero,
                  market_indicator_allow_profitable: bool = False,
+                 market_indicator_expiry_minutes_hard: Decimal = Decimal("4"),
                  price_type: str = "mid_price",
                  take_if_crossed: bool = False,
                  trade_gain_enabled: bool = False,
-                 trade_gain_hours: Decimal = Decimal(4),
+                 trade_gain_hours_buys: Decimal = Decimal(4),
+                 trade_gain_hours_sells: Decimal = Decimal(4),
                  trade_gain_trades: int = 1,
                  trade_gain_allowed_loss: Decimal = Decimal("0.2"),
                  trade_gain_profit_wanted: Decimal = Decimal("0.2"),
@@ -152,10 +154,12 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         self._market_indicator_delegate = market_indicator_delegate
         self._market_indicator_reduce_orders_to_pct = market_indicator_reduce_orders_to_pct
         self._market_indicator_allow_profitable = market_indicator_allow_profitable
+        self._market_indicator_expiry_minutes_hard = market_indicator_expiry_minutes_hard
         self._price_type = self.get_price_type(price_type)
         self._take_if_crossed = take_if_crossed
         self._trade_gain_enabled = trade_gain_enabled
-        self._trade_gain_hours = trade_gain_hours
+        self._trade_gain_hours_buys = trade_gain_hours_buys
+        self._trade_gain_hours_sells = trade_gain_hours_sells
         self._trade_gain_trades = trade_gain_trades
         self._trade_gain_allowed_loss = trade_gain_allowed_loss
         self._trade_gain_profit_wanted = trade_gain_profit_wanted
@@ -461,12 +465,20 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         self._trade_gain_enabled = value
 
     @property
-    def trade_gain_hours(self) -> Decimal:
-        return self._trade_gain_hours
+    def trade_gain_hours_buys(self) -> Decimal:
+        return self._trade_gain_hours_buys
 
-    @trade_gain_hours.setter
-    def trade_gain_hours(self, value: Decimal):
-        self._trade_gain_hours = value
+    @trade_gain_hours_buys.setter
+    def trade_gain_hours_buys(self, value: Decimal):
+        self._trade_gain_hours_buys = value
+
+    @property
+    def trade_gain_hours_sells(self) -> Decimal:
+        return self._trade_gain_hours_sells
+
+    @trade_gain_hours_sells.setter
+    def trade_gain_hours_sells(self, value: Decimal):
+        self._trade_gain_hours_sells = value
 
     @property
     def trade_gain_trades(self) -> int:
@@ -644,6 +656,14 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         self._market_indicator_allow_profitable = value
 
     @property
+    def market_indicator_expiry_minutes_hard(self) -> bool:
+        return self._market_indicator_expiry_minutes_hard
+
+    @market_indicator_expiry_minutes_hard.setter
+    def market_indicator_expiry_minutes_hard(self, value: bool):
+        self._market_indicator_expiry_minutes_hard = value
+
+    @property
     def order_tracker(self):
         return self._sb_order_tracker
 
@@ -810,15 +830,23 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         lines.extend(["", "  Markets:"] + ["    " + line for line in markets_df.to_string(index=False).split("\n")])
 
         if self.market_indicator_delegate is not None:
-            trend_status = self.market_indicator_delegate.trend_is_up()
-            if trend_status is True:
+            trend_status_up = self.market_indicator_delegate.trend_is_up()
+            trend_status_down = self.market_indicator_delegate.trend_is_down()
+            if trend_status_up is True:
                 trend_str = "Up"
-            elif trend_status is False:
+            elif trend_status_up is None:
+                trend_str = "Up (Expired)"
+            elif trend_status_down is True:
                 trend_str = "Down"
+            elif trend_status_down is None:
+                trend_str = "Down (Expired)"
             else:
                 trend_str = "Expired"
+            trend_still_valid = self.market_signal_is_valid()
             trend_name = self.market_indicator_delegate.market_indicator_feed.name
-            lines.extend(["", "  Trend:"] + [f"    Market Trend is {trend_str} ({trend_name})"])
+            time_now = int(time.time())
+            trend_age = ((time_now - self.market_indicator_delegate.last_timestamp) / 60)
+            lines.extend(["", "  Trend:"] + [f"    Market Trend is {trend_str} (Valid: {trend_still_valid}) ({trend_age:.1f}mins {trend_name})"])
 
         assets_df = self.pure_mm_assets_df(not self._inventory_skew_enabled)
         # append inventory skew stats.
@@ -1115,7 +1143,8 @@ cdef class PureMarketMakingStrategy(StrategyBase):
     cdef c_apply_profit_constraint(self, object proposal):
         cdef:
             ExchangeBase market = self._market_info.market
-            int accept_time = int(time.time() - int((self.trade_gain_hours * (60 * 60))))
+            int accept_time_buys = int(time.time() - int((self.trade_gain_hours_buys * (60 * 60))))
+            int accept_time_sells = int(time.time() - int((self.trade_gain_hours_sells * (60 * 60))))
             int accept_time_careful = int(time.time() - int((self.trade_gain_careful_hours * (60 * 60))))
             int recent_buys = 0
             int recent_buys_cf = 0
@@ -1183,10 +1212,11 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         for trade in all_trades:
             trade_ts = int(trade.timestamp) if type(trade) == Trade else int(trade.timestamp / 1000)
             trade_side = trade.side.name if type(trade) == Trade else trade.trade_type
-            if trade_ts > accept_time:
-                if trade_side == TradeType.SELL.name:
+            if trade_side == TradeType.SELL.name:
+                if trade_ts > accept_time_sells:
                     filtered_trades[trade_ts] = trade
-                if trade_side == TradeType.BUY.name:
+            if trade_side == TradeType.BUY.name:
+                if trade_ts > accept_time_buys:
                     filtered_trades[trade_ts] = trade
 
         # Filter and find trade vals
@@ -1199,15 +1229,16 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                     recent_sells_cf += 1
                 elif trade_side == TradeType.BUY.name:
                     recent_buys_cf += 1
-            if trade_ts > accept_time:
-                if trade_side == TradeType.SELL.name:
+            if trade_side == TradeType.SELL.name:
+                if trade_ts > accept_time_sells:
                     recent_sells += 1
                     if recent_sells <= recent_trades_limit:
                         if lowest_sell_price == s_decimal_zero or trade_price < lowest_sell_price:
                             lowest_sell_price = trade_price
                         if highest_sell_price == s_decimal_zero or trade_price > highest_sell_price:
                             highest_sell_price = trade_price
-                elif trade_side == TradeType.BUY.name:
+            elif trade_side == TradeType.BUY.name:
+                if trade_ts > accept_time_buys:
                     recent_buys += 1
                     if recent_buys <= recent_trades_limit:
                         if lowest_buy_price == s_decimal_zero or trade_price < lowest_buy_price:
@@ -1292,10 +1323,12 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         market_trend_up = indicator.c_trend_is_up()
         market_trend_down = indicator.c_trend_is_down()
         signal_price_up = indicator.signal_price_up
+        market_signal_is_valid = self.market_signal_is_valid()
 
         for buy in proposal.buys:
-            buys_allowed = (market_trend_up is True or
-                            market_trend_up is None and buy.price < signal_price_up)
+            buys_allowed = (market_signal_is_valid and
+                            (market_trend_up is True or
+                             market_trend_up is None and buy.price < signal_price_up))
             if not buys_allowed:
                 buy.size = min(buy.size, buy.size * indicator_orders_pct)
 
@@ -1303,7 +1336,8 @@ cdef class PureMarketMakingStrategy(StrategyBase):
 
         sells_blocked = ((not allow_profitable or
                           self.trade_gain_pricethresh_sell == s_decimal_zero)
-                         and market_trend_down in [None, False])
+                         and market_trend_down in [None, False]
+                         and market_signal_is_valid)
         if sells_blocked:
             for sell in proposal.sells:
                 sell.size = min(sell.size, sell.size * indicator_orders_pct)
@@ -1704,3 +1738,12 @@ cdef class PureMarketMakingStrategy(StrategyBase):
             return PriceType.InventoryCost
         else:
             raise ValueError(f"Unrecognized price type string {price_type_str}.")
+
+    def market_signal_is_valid(self):
+        if self.market_indicator_delegate.last_timestamp <= 0:
+            return False
+        time_now = int(time.time())
+        trend_age = int((time_now - self.market_indicator_delegate.last_timestamp) / 60)
+        if trend_age <= self._market_indicator_expiry_minutes_hard:
+            return True
+        return False

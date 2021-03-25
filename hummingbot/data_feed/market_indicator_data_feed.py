@@ -83,6 +83,10 @@ class MarketIndicatorDataFeed(NetworkBase):
         return None
 
     @property
+    def last_timestamp(self):
+        return self._last_check
+
+    @property
     def last_price_up(self):
         return self._last_price_up
 

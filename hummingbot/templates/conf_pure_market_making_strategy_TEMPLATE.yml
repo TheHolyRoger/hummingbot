@@ -2,7 +2,7 @@
 ###       Pure market making strategy config         ###
 ########################################################
 
-template_version: 21
+template_version: 23
 strategy: null
 
 # Exchange and token parameters.
@@ -117,7 +117,8 @@ take_if_crossed: null
 
 #Trade Tracking
 trade_gain_enabled: null
-trade_gain_hours: null
+trade_gain_hours_buys: null
+trade_gain_hours_sells: null
 trade_gain_trades: null
 
 trade_gain_allowed_loss: null
@@ -144,7 +145,8 @@ market_indicator_refresh_time: null
 market_indicator_reduce_orders_to_pct: null
 market_indicator_allow_profitable: null
 market_indicator_disable_expired: null
-market_indicator_expiry_minutes: null
+market_indicator_expiry_minutes_soft: null
+market_indicator_expiry_minutes_hard: null
 market_indicator_use_apitime: null
 
 

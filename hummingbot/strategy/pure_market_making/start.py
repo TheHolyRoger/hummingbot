@@ -75,7 +75,8 @@ def start(self):
             inventory_cost_price_delegate = InventoryCostPriceDelegate(db, trading_pair)
         take_if_crossed = c_map.get("take_if_crossed").value
         trade_gain_enabled = c_map.get("trade_gain_enabled").value
-        trade_gain_hours = c_map.get("trade_gain_hours").value
+        trade_gain_hours_buys = c_map.get("trade_gain_hours_buys").value
+        trade_gain_hours_sells = c_map.get("trade_gain_hours_sells").value
         trade_gain_trades = c_map.get("trade_gain_trades").value
         trade_gain_allowed_loss = c_map.get("trade_gain_allowed_loss").value / Decimal('100')
         trade_gain_profit_wanted = c_map.get("trade_gain_profit_wanted").value / Decimal('100')
@@ -93,12 +94,13 @@ def start(self):
         market_indicator_delegate = None
         market_indicator_reduce_orders_to_pct = c_map.get("market_indicator_reduce_orders_to_pct").value / Decimal('100')
         market_indicator_allow_profitable = c_map.get("market_indicator_allow_profitable").value
+        market_indicator_expiry_minutes_hard = c_map.get("market_indicator_expiry_minutes_hard").value
         if market_indicator_enabled is True:
             indicator_url = c_map.get("market_indicator_url").value
             indicator_key = c_map.get("market_indicator_apikey").value
             indicator_refresh_time = c_map.get("market_indicator_refresh_time").value
             indicator_disable_expired = c_map.get("market_indicator_disable_expired").value
-            indicator_expiry = c_map.get("market_indicator_expiry_minutes").value
+            indicator_expiry = c_map.get("market_indicator_expiry_minutes_soft").value
             indicator_use_time = c_map.get("market_indicator_use_apitime").value
             market_indicator_delegate = MarketIndicatorDelegate(indicator_url,
                                                                 indicator_key,
@@ -134,10 +136,12 @@ def start(self):
             market_indicator_delegate=market_indicator_delegate,
             market_indicator_reduce_orders_to_pct=market_indicator_reduce_orders_to_pct,
             market_indicator_allow_profitable=market_indicator_allow_profitable,
+            market_indicator_expiry_minutes_hard=market_indicator_expiry_minutes_hard,
             price_type=price_type,
             take_if_crossed=take_if_crossed,
             trade_gain_enabled=trade_gain_enabled,
-            trade_gain_hours=trade_gain_hours,
+            trade_gain_hours_buys=trade_gain_hours_buys,
+            trade_gain_hours_sells=trade_gain_hours_sells,
             trade_gain_trades=trade_gain_trades,
             trade_gain_allowed_loss=trade_gain_allowed_loss,
             trade_gain_profit_wanted=trade_gain_profit_wanted,

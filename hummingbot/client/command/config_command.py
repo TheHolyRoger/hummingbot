@@ -46,7 +46,8 @@ no_restart_pmm_keys_in_percentage = no_restart_pmm_keys_in_percentage + pmm_k_ap
 no_restart_pmm_keys = ["order_amount", "order_levels", "filled_order_delay", "inventory_skew_enabled", "inventory_range_multiplier"]
 pmm_k_append = [
     "trade_gain_enabled",
-    "trade_gain_hours",
+    "trade_gain_hours_buys",
+    "trade_gain_hours_sells",
     "trade_gain_trades",
     "trade_gain_ownside_enabled",
     "trade_gain_careful_enabled",
@@ -55,6 +56,7 @@ pmm_k_append = [
     "trade_gain_initial_max_buy",
     "trade_gain_initial_min_sell",
     "market_indicator_allow_profitable",
+    "market_indicator_expiry_minutes_hard",
 ]
 no_restart_pmm_keys = no_restart_pmm_keys + pmm_k_append
 global_configs_to_display = ["0x_active_cancels",

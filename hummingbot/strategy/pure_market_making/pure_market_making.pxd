@@ -36,11 +36,13 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         object _inventory_cost_price_delegate
         object _market_indicator_delegate
         object _market_indicator_reduce_orders_to_pct
-        object _market_indicator_allow_profitable
+        bint _market_indicator_allow_profitable
+        object _market_indicator_expiry_minutes_hard
         object _price_type
         bint _take_if_crossed
         bint _trade_gain_enabled
-        object _trade_gain_hours
+        object _trade_gain_hours_buys
+        object _trade_gain_hours_sells
         int _trade_gain_trades
         object _trade_gain_allowed_loss
         object _trade_gain_profit_wanted

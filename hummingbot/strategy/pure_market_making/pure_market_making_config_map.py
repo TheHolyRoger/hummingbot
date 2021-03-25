@@ -361,9 +361,16 @@ pure_market_making_config_map = {
                   validator=validate_bool,
                   prompt_on_new=True,
                   default=False),
-    "trade_gain_hours":
-        ConfigVar(key="trade_gain_hours",
-                  prompt="How many hours do you want the profit tracking window to be? >>> ",
+    "trade_gain_hours_buys":
+        ConfigVar(key="trade_gain_hours_buys",
+                  prompt="How many hours do you want the profit tracking window to be (buys)? >>> ",
+                  required_if=lambda: pure_market_making_config_map.get("trade_gain_enabled").value is True,
+                  type_str="decimal",
+                  validator=lambda v: validate_decimal(v, -1, 10000, True),
+                  default=Decimal(4)),
+    "trade_gain_hours_sells":
+        ConfigVar(key="trade_gain_hours_sells",
+                  prompt="How many hours do you want the profit tracking window to be (sells)? >>> ",
                   required_if=lambda: pure_market_making_config_map.get("trade_gain_enabled").value is True,
                   type_str="decimal",
                   validator=lambda v: validate_decimal(v, -1, 10000, True),
@@ -496,9 +503,16 @@ pure_market_making_config_map = {
                   type_str="bool",
                   validator=validate_bool,
                   default=False),
-    "market_indicator_expiry_minutes":
-        ConfigVar(key="market_indicator_expiry_minutes",
-                  prompt="How many minutes should the indicator signal expire after? >>> ",
+    "market_indicator_expiry_minutes_soft":
+        ConfigVar(key="market_indicator_expiry_minutes_soft",
+                  prompt="How many minutes should the indicator signal expire after (soft)? >>> ",
+                  required_if=lambda: pure_market_making_config_map.get("market_indicator_enabled").value is True,
+                  type_str="int",
+                  validator=lambda v: validate_int(v, min_value=0, inclusive=True),
+                  default=5),
+    "market_indicator_expiry_minutes_hard":
+        ConfigVar(key="market_indicator_expiry_minutes_hard",
+                  prompt="How many minutes should the indicator signal expire after (hard)? >>> ",
                   required_if=lambda: pure_market_making_config_map.get("market_indicator_enabled").value is True,
                   type_str="int",
                   validator=lambda v: validate_int(v, min_value=0, inclusive=True),

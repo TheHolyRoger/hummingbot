@@ -26,6 +26,10 @@ cdef class MarketIndicatorDelegate:
         return self.c_trend_is_down()
 
     @property
+    def last_timestamp(self) -> int:
+        return self._market_indicator_feed.last_timestamp
+
+    @property
     def signal_price_up(self) -> Decimal:
         return self._market_indicator_feed.last_price_up
 
