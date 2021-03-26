@@ -14,7 +14,8 @@ cdef class RandomLoopTrade(StrategyBase):
 
         double _cancel_order_wait_time
         double _status_report_interval
-        double _last_timestamp
+        double _last_status_timestamp
+        double _last_order_timestamp
         double _start_timestamp
         double _time_delay
 

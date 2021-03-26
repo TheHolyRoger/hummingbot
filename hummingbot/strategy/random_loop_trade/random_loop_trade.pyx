@@ -73,7 +73,7 @@ cdef class RandomLoopTrade(StrategyBase):
                  order_amount_min: Decimal = s_decimal_zero,
                  order_amount_max: Decimal = s_decimal_zero,
                  logging_options: int = OPTION_LOG_ALL,
-                 status_report_interval: float = 20):
+                 status_report_interval: float = 5):
 
         if len(market_infos) < 1:
             raise ValueError(f"market_infos must not be empty.")
@@ -96,7 +96,8 @@ cdef class RandomLoopTrade(StrategyBase):
         self._order_amount_min = order_amount_min
         self._order_amount_max = order_amount_max
         self._start_timestamp = 0
-        self._last_timestamp = 0
+        self._last_status_timestamp = 0
+        self._last_order_timestamp = 0
         self._order_pricetype_random = order_pricetype_random
         self._order_pricetype_spread = order_pricetype_spread
         self._order_price = order_price
@@ -276,9 +277,8 @@ cdef class RandomLoopTrade(StrategyBase):
 
     cdef c_start(self, Clock clock, double timestamp):
         StrategyBase.c_start(self, clock, timestamp)
-        self.logger().info(f"Waiting for {self._time_delay} to place orders")
+        self.logger().info(f"Waiting until markets are ready to place orders.")
         self._start_timestamp = timestamp
-        self._last_timestamp = timestamp
 
     cdef c_tick(self, double timestamp):
         """
@@ -292,13 +292,13 @@ cdef class RandomLoopTrade(StrategyBase):
         StrategyBase.c_tick(self, timestamp)
         cdef:
             int64_t current_tick = <int64_t>(timestamp // self._status_report_interval)
-            int64_t last_tick = <int64_t>(self._last_timestamp // self._status_report_interval)
+            int64_t last_tick = <int64_t>(self._last_status_timestamp // self._status_report_interval)
             bint should_report_warnings = ((current_tick > last_tick) and
                                            (self._logging_options & self.OPTION_LOG_STATUS_REPORT))
             list active_maker_orders = self.active_limit_orders
 
         try:
-            if current_tick > last_tick or timestamp <= self._start_timestamp + 3:
+            if current_tick > last_tick:
                 if not self._all_markets_ready:
                     self._all_markets_ready = all([market.ready for market in self._sb_markets])
                     if not self._all_markets_ready:
@@ -315,7 +315,7 @@ cdef class RandomLoopTrade(StrategyBase):
                 for market_info in self._market_infos.values():
                     self.c_process_market(market_info)
         finally:
-            self._last_timestamp = timestamp
+            self._last_status_timestamp = timestamp
 
     cdef c_place_orders(self, object market_info):
         """
@@ -450,22 +450,15 @@ cdef class RandomLoopTrade(StrategyBase):
         cdef:
             ExchangeBase maker_market = market_info.market
             set cancel_order_ids = set()
+            int64_t current_tick = <int64_t>(self._current_timestamp // self._time_delay)
+            int64_t last_tick = <int64_t>(self._last_order_timestamp // self._time_delay)
 
-        # if self._place_orders and ready_to_place:
-        if self._place_orders:
-            # If current timestamp is greater than the start timestamp + time delay place orders
-            if self._current_timestamp > self._start_timestamp + self._time_delay:
-
-                # self._place_orders = False
-                self.logger().info(f"Current time: "
-                                   f"{datetime.fromtimestamp(self._current_timestamp).strftime('%Y-%m-%d %H:%M:%S')} "
-                                   f"is now greater than "
-                                   f"Starting time: "
-                                   f"{datetime.fromtimestamp(self._start_timestamp).strftime('%Y-%m-%d %H:%M:%S')} "
-                                   f" with time delay: {self._time_delay}. Trying to place orders now. ")
-                self.c_place_orders(market_info)
-                # Reset start timestamp here for loop mode
-                self._start_timestamp = int(time.time())
+        # if self._place_orders and order interval is ready, place orders.
+        if self._place_orders and current_tick > last_tick:
+            self.logger().info("Trying to place orders on Random Loop interval now")
+            self.c_place_orders(market_info)
+            # Set last order timestamp here for loop mode
+            self._last_order_timestamp = int(time.time())
 
         active_orders = self.market_info_to_active_orders.get(market_info, [])
 
