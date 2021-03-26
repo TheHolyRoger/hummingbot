@@ -97,8 +97,10 @@ async def aiohttp_response_with_errors(request_coroutine):
             except Exception:
                 request_errors = True
                 try:
-                    parsed_response = str(await response.read())
-                    if len(parsed_response) > 100:
+                    parsed_response = await response.text('utf-8')
+                    if len(parsed_response) < 1:
+                        parsed_response = None
+                    elif len(parsed_response) > 100:
                         parsed_response = f"{parsed_response[:100]} ... (truncated)"
                 except Exception:
                     pass
@@ -130,8 +132,11 @@ async def api_call_with_retries(method,
         if try_count < Constants.API_MAX_RETRIES:
             try_count += 1
             time_sleep = retry_sleep_time(try_count)
-            print(f"Error fetching data from {url}. HTTP status is {http_status}. "
-                  f"Retrying in {time_sleep:.0f}s.")
+            suppress_msgs = ['Forbidden']
+            if (parsed_response is not None and parsed_response not in suppress_msgs) or try_count > 1:
+                str_msg = parsed_response if parsed_response is not None else ""
+                print(f"Error fetching data from {url}. HTTP status is {http_status}. "
+                      f"Retrying in {time_sleep:.0f}s. {str_msg}")
             await asyncio.sleep(time_sleep)
             return await api_call_with_retries(method=method, endpoint=endpoint, params=params,
                                                shared_client=shared_client, try_count=try_count)

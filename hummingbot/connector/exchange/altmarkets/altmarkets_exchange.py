@@ -336,8 +336,11 @@ class AltmarketsExchange(ExchangeBase):
                 if try_count < Constants.API_MAX_RETRIES:
                     try_count += 1
                     time_sleep = retry_sleep_time(try_count)
-                    self.logger().info(f"Error fetching data from {url}. HTTP status is {http_status}. "
-                                       f"Retrying in {time_sleep:.0f}s.")
+                    suppress_msgs = ['Forbidden']
+                    if (parsed_response is not None and parsed_response not in suppress_msgs) or try_count > 1:
+                        str_msg = parsed_response if parsed_response is not None else ""
+                        self.logger().info(f"Error fetching data from {url}. HTTP status is {http_status}. "
+                                           f"Retrying in {time_sleep:.0f}s. {str_msg}")
                     await asyncio.sleep(time_sleep)
                     return await self._api_request(method=method, endpoint=endpoint, params=params,
                                                    is_auth_required=is_auth_required, try_count=try_count)
