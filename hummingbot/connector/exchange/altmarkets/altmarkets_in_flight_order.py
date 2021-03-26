@@ -108,9 +108,12 @@ class AltmarketsInFlightOrder(InFlightOrderBase):
         # Update order execution status
         self.last_state = order_update["state"]
         # Update order
-        executed_price = Decimal(str(order_update.get("price", "0")))
-        self.executed_amount_base = Decimal(order_update["executed_volume"])
-        self.executed_amount_quote = executed_price * self.executed_amount_base
+        executed_price = Decimal(str(order_update.get("price")
+                                     if order_update.get("price") is not None
+                                     else order_update.get("avg_price", "0")))
+        self.executed_amount_base = Decimal(str(order_update["executed_volume"]))
+        self.executed_amount_quote = (executed_price * self.executed_amount_base) \
+            if self.executed_amount_base > s_decimal_0 else s_decimal_0
         if self.executed_amount_base <= s_decimal_0:
             # No trades executed yet.
             return False
@@ -141,9 +144,8 @@ class AltmarketsInFlightOrder(InFlightOrderBase):
             "total":"0.00000004"
         }
         """
-        executed_price = Decimal(str(trade_update.get("price", "0")))
+        self.executed_amount_base = Decimal(str(trade_update.get("amount", "0")))
         self.executed_amount_quote = Decimal(str(trade_update.get("total", "0")))
-        self.executed_amount_base = self.executed_amount_quote / executed_price if executed_price > 0 else s_decimal_0
         if self.executed_amount_base <= s_decimal_0:
             # No trades executed yet.
             return False

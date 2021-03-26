@@ -430,7 +430,7 @@ class AltmarketsExchange(ExchangeBase):
         trading_rule = self._trading_rules[trading_pair]
 
         amount = self.quantize_order_amount(trading_pair, amount)
-        price = self.quantize_order_price(trading_pair, price)
+        price = self.quantize_order_price(trading_pair, s_decimal_0 if math.isnan(price) else price)
         if amount < trading_rule.min_order_size:
             raise ValueError(f"Buy order amount {amount} is lower than the minimum order size "
                              f"{trading_rule.min_order_size}.")
@@ -676,6 +676,7 @@ class AltmarketsExchange(ExchangeBase):
         except Exception as e:
             self.logger().error(f"Error in order update for {tracked_order.exchange_order_id}. Message: {order_msg}\n{e}")
             traceback.print_exc()
+            raise e
         if updated:
             safe_ensure_future(self._trigger_order_fill(tracked_order, order_msg))
         elif tracked_order.is_cancelled:
@@ -720,6 +721,9 @@ class AltmarketsExchange(ExchangeBase):
     async def _trigger_order_fill(self,
                                   tracked_order: AltmarketsInFlightOrder,
                                   update_msg: Dict[str, Any]):
+        executed_price = Decimal(str(update_msg.get("price")
+                                     if update_msg.get("price") is not None
+                                     else update_msg.get("avg_price", "0")))
         self.trigger_event(
             MarketEvent.OrderFilled,
             OrderFilledEvent(
@@ -728,7 +732,7 @@ class AltmarketsExchange(ExchangeBase):
                 tracked_order.trading_pair,
                 tracked_order.trade_type,
                 tracked_order.order_type,
-                Decimal(str(update_msg.get("price", "0"))),
+                executed_price,
                 tracked_order.executed_amount_base,
                 TradeFee(percent=update_msg["trade_fee"]),
             )
