@@ -14,7 +14,6 @@ from math import (
 import time
 from hummingbot.core.clock cimport Clock
 from hummingbot.core.event.events import TradeType, PriceType
-from hummingbot.core.data_type.trade import Trade
 from hummingbot.core.data_type.limit_order cimport LimitOrder
 from hummingbot.core.data_type.limit_order import LimitOrder
 from hummingbot.core.network_iterator import NetworkStatus
@@ -41,6 +40,8 @@ from .order_book_asset_price_delegate cimport OrderBookAssetPriceDelegate
 from .inventory_cost_price_delegate import InventoryCostPriceDelegate
 from .market_indicator_delegate import MarketIndicatorDelegate
 from .market_indicator_delegate cimport MarketIndicatorDelegate
+from .trade_gain_delegate import TradeGainDelegate
+from .trade_gain_delegate cimport TradeGainDelegate
 
 
 NaN = float("nan")
@@ -829,24 +830,34 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         markets_df = self.market_status_data_frame([self._market_info])
         lines.extend(["", "  Markets:"] + ["    " + line for line in markets_df.to_string(index=False).split("\n")])
 
+        if self.trade_gain_profit_selloff > s_decimal_zero:
+            profit_perc = self._trade_gain_profitability * Decimal('100')
+            lines.extend(["", "  PnL:"] + [f"    Selling-Off: {self._trade_gain_dump_it}, Last profit: {profit_perc:.2f}%"])
+        if self._trade_gain_enabled:
+            lines.extend(["", "  Trade Gain:"] + [(f"    Buy Threshold: {self.trade_gain_pricethresh_buy:.8f}, "
+                                                   f"Sell Threshold: {self.trade_gain_pricethresh_sell:.8f}")])
         if self.market_indicator_delegate is not None:
             trend_status_up = self.market_indicator_delegate.trend_is_up()
             trend_status_down = self.market_indicator_delegate.trend_is_down()
+            signal_price_up = self.market_indicator_delegate.signal_price_up
+            signal_price_down = self.market_indicator_delegate.signal_price_down
             if trend_status_up is True:
-                trend_str = "Up"
+                trend_str = f"Up @ {signal_price_up}"
             elif trend_status_up is None:
-                trend_str = "Up (Expired)"
+                trend_str = f"Up @ {signal_price_up} (Expired)"
             elif trend_status_down is True:
-                trend_str = "Down"
+                trend_str = f"Down @ {signal_price_down}"
             elif trend_status_down is None:
-                trend_str = "Down (Expired)"
+                trend_str = f"Down @ {signal_price_down} (Expired)"
             else:
                 trend_str = "Expired"
-            trend_still_valid = self.market_signal_is_valid()
-            trend_name = self.market_indicator_delegate.market_indicator_feed.name
+            trend_still_valid = "Still" if self.market_signal_is_valid() else "Not"
+            trend_name = str(self.market_indicator_delegate.market_indicator_feed.name)[:40]
             time_now = int(time.time())
-            trend_age = ((time_now - self.market_indicator_delegate.last_timestamp) / 60)
-            lines.extend(["", "  Trend:"] + [f"    Market Trend is {trend_str} (Valid: {trend_still_valid}) ({trend_age:.1f}mins {trend_name})"])
+            trend_age = self.seconds_to_human(int(time_now - self.market_indicator_delegate.last_timestamp))
+            lines.extend(["", "  Market Trend:",
+                          f"    {trend_str}  -  {trend_still_valid} valid @ {trend_age}",
+                          f"    Via {trend_name}"])
 
         assets_df = self.pure_mm_assets_df(not self._inventory_skew_enabled)
         # append inventory skew stats.
@@ -921,6 +932,8 @@ cdef class PureMarketMakingStrategy(StrategyBase):
             asset_mid_price = Decimal("0")
             # asset_mid_price = self.c_set_mid_price(market_info)
             if self._create_timestamp <= self._current_timestamp:
+                # Apply Profit and Loss tracking constraint
+                self.c_apply_profit_loss_constraint()
                 # 1. Create base order proposals
                 proposal = self.c_create_base_proposal()
                 # 2. Apply functions that limit numbers of buys and sells proposal
@@ -931,7 +944,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                 self.c_apply_order_size_modifiers(proposal)
                 # 4.A. Apply Trade Gain Rules
                 if self._trade_gain_enabled:
-                    self.c_apply_profit_constraint(proposal)
+                    self.c_apply_trade_gain_constraint(proposal)
                 # 4.B. Apply Market Indicator Rules
                 if self._market_indicator_delegate is not None and not self._trade_gain_dump_it:
                     self.c_apply_indicator_constraint(proposal)
@@ -1139,33 +1152,9 @@ cdef class PureMarketMakingStrategy(StrategyBase):
 
         proposal.sells = [o for o in proposal.sells if o.size > 0]
 
-    # TRADE TRACKER
-    cdef c_apply_profit_constraint(self, object proposal):
+    # PnL TRACKER
+    cdef c_apply_profit_loss_constraint(self):
         cdef:
-            ExchangeBase market = self._market_info.market
-            int accept_time_buys = int(time.time() - int((self.trade_gain_hours_buys * (60 * 60))))
-            int accept_time_sells = int(time.time() - int((self.trade_gain_hours_sells * (60 * 60))))
-            int accept_time_careful = int(time.time() - int((self.trade_gain_careful_hours * (60 * 60))))
-            int recent_buys = 0
-            int recent_buys_cf = 0
-            int recent_sells = 0
-            int recent_sells_cf = 0
-            bint careful_trades = self.trade_gain_careful_enabled
-            int careful_trades_limit = self.trade_gain_careful_limittrades
-            int recent_trades_limit = self.trade_gain_trades
-            object highest_buy_price = s_decimal_zero
-            object lowest_buy_price = s_decimal_zero
-            object highest_sell_price = s_decimal_zero
-            object lowest_sell_price = s_decimal_zero
-            object buy_margin = self.trade_gain_allowed_loss + Decimal('1')
-            object buy_margin_on_self = self.trade_gain_ownside_allowedloss + Decimal('1')
-            object buy_profit = Decimal('1') - self.trade_gain_profit_wanted
-            object sell_margin = Decimal('1') - self.trade_gain_allowed_loss
-            object sell_margin_on_self = Decimal('1') - self.trade_gain_ownside_allowedloss
-            object sell_profit = self.trade_gain_profit_wanted + Decimal('1')
-            list trades = self.trades
-            list trades_history = self.trades_history
-            object filtered_trades = {}
             object current_price = self.get_price()
             cdef double next_pnl_cycle = self._current_timestamp + self._order_refresh_time
             cdef double buyback_pnl_cycle = self._current_timestamp + (self._order_refresh_time * 10)
@@ -1206,80 +1195,25 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                     if self._inventory_range_multiplier == Decimal("0.000001"):
                         self._inventory_range_multiplier = self._inventory_range_multiplier_restore
                     self._pnl_timestamp = buyback_pnl_cycle
+    # PnL TRACKER
 
-        # Order by TS
-        all_trades = trades + trades_history if len(trades) < 1000 else trades
-        for trade in all_trades:
-            trade_ts = int(trade.timestamp) if type(trade) == Trade else int(trade.timestamp / 1000)
-            trade_side = trade.side.name if type(trade) == Trade else trade.trade_type
-            if trade_side == TradeType.SELL.name:
-                if trade_ts > accept_time_sells:
-                    filtered_trades[trade_ts] = trade
-            if trade_side == TradeType.BUY.name:
-                if trade_ts > accept_time_buys:
-                    filtered_trades[trade_ts] = trade
+    # TRADE TRACKER
+    cdef c_apply_trade_gain_constraint(self, object proposal):
+        cdef:
+            ExchangeBase market = self._market_info.market
+            TradeGainDelegate trade_gain_delegate = TradeGainDelegate(self)
+            object buy_profit = Decimal('1') - self.trade_gain_profit_wanted
+            object sell_profit = self.trade_gain_profit_wanted + Decimal('1')
+            object current_price = self.get_price()
 
-        # Filter and find trade vals
-        for trade_ts in sorted(list(filtered_trades.keys()), reverse=True):
-            trade = filtered_trades[trade_ts]
-            trade_side = trade.side.name if type(trade) == Trade else trade.trade_type
-            trade_price = Decimal(str(trade.price))
-            if trade_ts > accept_time_careful:
-                if trade_side == TradeType.SELL.name:
-                    recent_sells_cf += 1
-                elif trade_side == TradeType.BUY.name:
-                    recent_buys_cf += 1
-            if trade_side == TradeType.SELL.name:
-                if trade_ts > accept_time_sells:
-                    recent_sells += 1
-                    if recent_sells <= recent_trades_limit:
-                        if lowest_sell_price == s_decimal_zero or trade_price < lowest_sell_price:
-                            lowest_sell_price = trade_price
-                        if highest_sell_price == s_decimal_zero or trade_price > highest_sell_price:
-                            highest_sell_price = trade_price
-            elif trade_side == TradeType.BUY.name:
-                if trade_ts > accept_time_buys:
-                    recent_buys += 1
-                    if recent_buys <= recent_trades_limit:
-                        if lowest_buy_price == s_decimal_zero or trade_price < lowest_buy_price:
-                            lowest_buy_price = trade_price
-                        if highest_buy_price == s_decimal_zero or trade_price > highest_buy_price:
-                            highest_buy_price = trade_price
-
-        if not self._trade_gain_dump_it or self.trade_gain_profit_buyin == s_decimal_zero:
-            if lowest_sell_price != s_decimal_zero:
-                self.trade_gain_pricethresh_buy = Decimal(lowest_sell_price * buy_margin)
-                self.trade_gain_initial_max_buy = s_decimal_zero
-            elif self.trade_gain_initial_max_buy > s_decimal_zero:
-                self.trade_gain_pricethresh_buy = self.trade_gain_initial_max_buy
-
-        if highest_buy_price != s_decimal_zero:
-            self.trade_gain_pricethresh_sell = Decimal(highest_buy_price * sell_margin)
-            self.trade_gain_initial_min_sell = s_decimal_zero
-        elif self.trade_gain_initial_min_sell > s_decimal_zero:
-            self.trade_gain_pricethresh_sell = self.trade_gain_initial_min_sell
-
-        if self.trade_gain_ownside_enabled:
-            chk_ownside_buy = ((not self._trade_gain_dump_it or
-                                self.trade_gain_profit_buyin == s_decimal_zero) and
-                               lowest_buy_price != s_decimal_zero and
-                               self.trade_gain_initial_max_buy == s_decimal_zero and
-                               (lowest_sell_price == s_decimal_zero or
-                                (lowest_buy_price * buy_margin_on_self) < self.trade_gain_pricethresh_buy))
-            if chk_ownside_buy:
-                self.trade_gain_pricethresh_buy = Decimal(lowest_buy_price * buy_margin_on_self)
-
-            chk_ownside_sell = (highest_sell_price != s_decimal_zero and
-                                self.trade_gain_initial_min_sell == s_decimal_zero and
-                                (highest_buy_price == s_decimal_zero or
-                                 (highest_sell_price * sell_margin_on_self) > self.trade_gain_pricethresh_sell))
-            if chk_ownside_sell:
-                self.trade_gain_pricethresh_sell = Decimal(highest_sell_price * sell_margin_on_self)
+        trade_gain_delegate.c_refresh_filtered_trades()
+        trade_gain_delegate.c_populate_trade_vars()
+        trade_gain_delegate.c_set_buy_sell_thresholds()
+        trade_gain_delegate.c_set_same_side_thresholds()
 
         # Order Cancel Checks
-        should_cancel = (self._trade_gain_dump_it or (careful_trades and
-                                                      recent_sells_cf < 1 and
-                                                      recent_buys_cf >= careful_trades_limit))
+        should_cancel_buys = trade_gain_delegate.c_should_cancel_buys()
+        should_cancel_sells = trade_gain_delegate.c_should_cancel_sells()
 
         for buy in proposal.buys:
             # Order Raise Checks
@@ -1294,7 +1228,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                 buy.price = market.c_quantize_order_price(self.trading_pair, adjusted_price)
                 adjusted_amount = quote_amount / (buy.price)
                 buy.size = market.c_quantize_order_amount(self.trading_pair, adjusted_amount, buy.price)
-            elif should_cancel:
+            elif should_cancel_buys:
                 buy.size = s_decimal_zero
 
         proposal.buys = [o for o in proposal.buys if o.size > 0]
@@ -1304,10 +1238,11 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                 adjusted_price = Decimal((self.trade_gain_pricethresh_sell + (sell.price - current_price)) * sell_profit)
                 sell.price = market.c_quantize_order_price(self.trading_pair, adjusted_price)
                 sell.size = market.c_quantize_order_amount(self.trading_pair, sell.size, sell.price)
-            elif careful_trades and recent_buys_cf < 1 and recent_sells_cf >= careful_trades_limit:
+            elif should_cancel_sells:
                 sell.size = s_decimal_zero
 
         proposal.sells = [o for o in proposal.sells if o.size > 0]
+        del trade_gain_delegate
     # TRADE TRACKER
 
     # TREND TRACKER
@@ -1747,3 +1682,13 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         if trend_age <= self._market_indicator_expiry_minutes_hard:
             return True
         return False
+
+    def seconds_to_human(self, seconds):
+        if seconds < 60:
+            return f"{seconds:.0f} Secs"
+        elif seconds < 3600:
+            return f"{(seconds / 60):.0f} Mins"
+        elif seconds < 86400:
+            return f"{(seconds / 3600):.1f} Hrs"
+        else:
+            return f"{(seconds / 86400):.1f} Days"

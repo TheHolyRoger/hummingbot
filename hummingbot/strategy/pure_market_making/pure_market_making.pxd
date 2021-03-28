@@ -92,7 +92,8 @@ cdef class PureMarketMakingStrategy(StrategyBase):
     cdef c_apply_order_size_modifiers(self, object proposal)
     cdef c_apply_inventory_skew(self, object proposal)
     cdef c_apply_budget_constraint(self, object proposal)
-    cdef c_apply_profit_constraint(self, object proposal)
+    cdef c_apply_profit_loss_constraint(self)
+    cdef c_apply_trade_gain_constraint(self, object proposal)
     cdef c_apply_indicator_constraint(self, object proposal)
 
     cdef c_filter_out_takers(self, object proposal)

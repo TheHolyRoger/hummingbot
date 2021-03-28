@@ -69,18 +69,18 @@ class MarketIndicatorDataFeed(NetworkBase):
         return NetworkStatus.CONNECTED
 
     def trend_is_up(self) -> bool:
-        if not self._check_expiry or self._last_check > int(time.time() - self._expire_time):
-            if self._market_trend is True:
+        if self._market_trend is True:
+            if not self._check_expiry or self._last_check > int(time.time() - self._expire_time):
                 return True
-            return False
-        return None
+            return None
+        return False
 
     def trend_is_down(self) -> bool:
-        if not self._check_expiry or self._last_check > int(time.time() - self._expire_time):
-            if self._market_trend is False:
+        if self._market_trend is False:
+            if not self._check_expiry or self._last_check > int(time.time() - self._expire_time):
                 return True
-            return False
-        return None
+            return None
+        return False
 
     @property
     def last_timestamp(self):
