@@ -735,6 +735,7 @@ class AltmarketsExchange(ExchangeBase):
                 executed_price,
                 tracked_order.executed_amount_base,
                 TradeFee(percent=update_msg["trade_fee"]),
+                update_msg.get("exchange_trade_id", update_msg.get("id", update_msg.get("order_id")))
             )
         )
         if math.isclose(tracked_order.executed_amount_base, tracked_order.amount) or \

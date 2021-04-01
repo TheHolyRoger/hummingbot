@@ -153,6 +153,7 @@ class AltmarketsInFlightOrder(InFlightOrderBase):
         if trade_id in self.trade_id_set:
             # trade already recorded
             return False
+        trade_update["exchange_trade_id"] = trade_id
         self.trade_id_set.add(trade_id)
         self.fee_paid += trade_update.get("trade_fee") * self.executed_amount_base
         if not self.fee_asset:
