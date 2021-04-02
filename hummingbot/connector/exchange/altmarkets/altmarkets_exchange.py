@@ -673,6 +673,8 @@ class AltmarketsExchange(ExchangeBase):
         order_msg["trade_fee"] = self.estimate_fee_pct(tracked_order.order_type is OrderType.LIMIT_MAKER)
         try:
             updated = tracked_order.update_with_order_update(order_msg)
+            # Call Update balances on every message to catch order create, fill and cancel.
+            safe_ensure_future(self._update_balances())
         except Exception as e:
             self.logger().error(f"Error in order update for {tracked_order.exchange_order_id}. Message: {order_msg}\n{e}")
             traceback.print_exc()
@@ -712,6 +714,8 @@ class AltmarketsExchange(ExchangeBase):
         # Estimate fee
         trade_msg["trade_fee"] = self.estimate_fee_pct(tracked_order.order_type is OrderType.LIMIT_MAKER)
         updated = tracked_order.update_with_trade_update(trade_msg)
+        # Call Update balances on every message to catch order create, fill and cancel.
+        safe_ensure_future(self._update_balances())
 
         if not updated:
             return
