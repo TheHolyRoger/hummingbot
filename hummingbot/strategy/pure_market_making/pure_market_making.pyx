@@ -1208,6 +1208,9 @@ cdef class PureMarketMakingStrategy(StrategyBase):
 
         trade_gain_delegate.c_refresh_filtered_trades()
         trade_gain_delegate.c_populate_trade_vars()
+        # Check Inventory ratio
+        base_ratio, quote_ratio = self.get_inventory_ratios()
+        trade_gain_delegate.c_check_inventory_ratio(base_ratio, quote_ratio)
         trade_gain_delegate.c_set_buy_sell_thresholds()
         trade_gain_delegate.c_set_same_side_thresholds()
 
@@ -1216,11 +1219,11 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         should_cancel_sells = trade_gain_delegate.c_should_cancel_sells()
 
         for buy in proposal.buys:
-            # Order Raise Checks
-            should_raise = (not self._trade_gain_dump_it and
+            # Order Price Lower Checks
+            should_lower = (not self._trade_gain_dump_it and
                             buy.price > self.trade_gain_pricethresh_buy and
                             self.trade_gain_pricethresh_buy != s_decimal_zero)
-            if should_raise:
+            if should_lower:
                 buy_fee = market.c_get_fee(self.base_asset, self.quote_asset, OrderType.LIMIT, TradeType.BUY,
                                            buy.size, buy.price)
                 quote_amount = Decimal((buy.size * buy.price) * (Decimal('1') - buy_fee.percent))
@@ -1279,6 +1282,18 @@ cdef class PureMarketMakingStrategy(StrategyBase):
 
         proposal.sells = [o for o in proposal.sells if o.size > 0]
     # TREND TRACKER
+
+    # Get Inventory Ratios
+    def get_inventory_ratios(self):
+        market, trading_pair, base_asset, quote_asset = self._market_info
+        price = self._market_info.get_mid_price()
+        base_balance = float(market.get_balance(base_asset))
+        quote_balance = float(market.get_balance(quote_asset))
+        base_value = base_balance * float(price)
+        total_in_quote = base_value + quote_balance
+        base_ratio = base_value / total_in_quote if total_in_quote > 0 else 0
+        quote_ratio = quote_balance / total_in_quote if total_in_quote > 0 else 0
+        return float(base_ratio), float(quote_ratio)
 
     cdef c_filter_out_takers(self, object proposal):
         cdef:

@@ -76,6 +76,10 @@ cdef class TradeGainDelegate():
                         if self._highest_buy_price == s_decimal_zero or trade_price > self._highest_buy_price:
                             self._highest_buy_price = trade_price
 
+    cdef c_check_inventory_ratio(self, double base_ratio, double quote_ratio):
+        if quote_ratio >= 0.986:
+            self._lowest_sell_price = s_decimal_zero
+
     cdef c_set_buy_sell_thresholds(self):
         cdef:
             object buy_margin = self._strat.trade_gain_allowed_loss + Decimal('1')

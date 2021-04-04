@@ -17,6 +17,7 @@ cdef class TradeGainDelegate:
 
     cdef c_refresh_filtered_trades(self)
     cdef c_populate_trade_vars(self)
+    cdef c_check_inventory_ratio(self, double base_ratio, double quote_ratio)
     cdef c_set_buy_sell_thresholds(self)
     cdef c_set_same_side_thresholds(self)
     cdef bint c_should_cancel_buys(self)
