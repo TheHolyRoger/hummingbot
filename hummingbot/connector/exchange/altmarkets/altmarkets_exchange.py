@@ -454,6 +454,8 @@ class AltmarketsExchange(ExchangeBase):
                 self.logger().info(f"Created {order_type.name} {trade_type.name} order {order_id} for "
                                    f"{amount} {trading_pair}.")
                 tracked_order.update_exchange_order_id(exchange_order_id)
+            else:
+                raise Exception('Order not tracked.')
             if trade_type is TradeType.BUY:
                 event_tag = MarketEvent.BuyOrderCreated
                 event_cls = BuyOrderCreatedEvent
@@ -461,12 +463,12 @@ class AltmarketsExchange(ExchangeBase):
                 event_tag = MarketEvent.SellOrderCreated
                 event_cls = SellOrderCreatedEvent
             self.trigger_event(event_tag,
-                               event_cls(self.current_timestamp, order_type, trading_pair, amount, price, order_id))
+                               event_cls(self.current_timestamp, order_type, trading_pair, amount, price, order_id, exchange_order_id))
         except asyncio.CancelledError:
             raise
         except Exception as e:
             if isinstance(e, AltmarketsAPIError):
-                error_reason = e.error_payload.get('errors', {}).get('message', e.error_payload.get('errors'))
+                error_reason = e.error_payload.get('error', {}).get('message', e.error_payload.get('errors'))
             else:
                 error_reason = str(e)
             self.stop_tracking_order(order_id)
@@ -523,7 +525,11 @@ class AltmarketsExchange(ExchangeBase):
             if tracked_order is None:
                 raise ValueError(f"Failed to cancel order - {order_id}. Order not found.")
             if tracked_order.exchange_order_id is None:
-                await tracked_order.get_exchange_order_id()
+                try:
+                    async with timeout(6):
+                        await tracked_order.get_exchange_order_id()
+                except Exception:
+                    order_state = "reject"
             exchange_order_id = tracked_order.exchange_order_id
             response = await self._api_request("POST",
                                                Constants.ENDPOINT["ORDER_DELETE"].format(id=exchange_order_id),
@@ -608,7 +614,11 @@ class AltmarketsExchange(ExchangeBase):
             tasks = []
             for tracked_order in tracked_orders:
                 if tracked_order.exchange_order_id is None:
-                    await tracked_order.get_exchange_order_id()
+                    try:
+                        async with timeout(6):
+                            await tracked_order.get_exchange_order_id()
+                    except Exception:
+                        continue
                 exchange_order_id = tracked_order.exchange_order_id
                 tasks.append(self._api_request("GET",
                                                Constants.ENDPOINT["ORDER_STATUS"].format(id=exchange_order_id),
@@ -784,7 +794,6 @@ class AltmarketsExchange(ExchangeBase):
             async with timeout(timeout_seconds):
                 cancellation_results = await safe_gather(*tasks, return_exceptions=False)
         except Exception:
-            print("cancel all error")
             self.logger().network(
                 "Unexpected error cancelling orders.", exc_info=True,
                 app_warning_msg=(f"Failed to cancel all orders on {Constants.EXCHANGE_NAME}. "
