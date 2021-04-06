@@ -714,7 +714,11 @@ class AltmarketsExchange(ExchangeBase):
         tracked_orders = list(self._in_flight_orders.values())
         for order in tracked_orders:
             if order.exchange_order_id is None:
-                await order.get_exchange_order_id()
+                try:
+                    async with timeout(6):
+                        await order.get_exchange_order_id()
+                except Exception:
+                    pass
         track_order = [o for o in tracked_orders if exchange_order_id == o.exchange_order_id]
 
         if not track_order:
