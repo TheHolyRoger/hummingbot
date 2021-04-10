@@ -439,6 +439,7 @@ class AltmarketsExchange(ExchangeBase):
                       "side": trade_type.name.lower(),
                       "ord_type": order_type_str,
                       # "price": f"{price:f}",
+                      "client_id": order_id,
                       "volume": f"{amount:f}",
                       }
         if order_type is not OrderType.MARKET:
