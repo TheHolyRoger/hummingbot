@@ -2,6 +2,7 @@ import aiohttp
 import asyncio
 import random
 import re
+import ujson
 from dateutil.parser import parse as dateparse
 from typing import (
     Any,
@@ -98,14 +99,19 @@ async def aiohttp_response_with_errors(request_coroutine):
                 request_errors = True
                 try:
                     parsed_response = await response.text('utf-8')
-                    if len(parsed_response) < 1:
-                        parsed_response = None
-                    elif len(parsed_response) > 100:
-                        parsed_response = f"{parsed_response[:100]} ... (truncated)"
+                    try:
+                        parsed_response = ujson.loads(parsed_response)
+                    except Exception:
+                        if len(parsed_response) < 1:
+                            parsed_response = None
+                        elif len(parsed_response) > 100:
+                            parsed_response = f"{parsed_response[:100]} ... (truncated)"
                 except Exception:
                     pass
             TempFailure = (parsed_response is None or
-                           (response.status not in [200, 201] and "errors" not in parsed_response))
+                           (response.status not in [200, 201] and
+                            "errors" not in parsed_response and
+                            "error" not in parsed_response))
             if TempFailure:
                 parsed_response = response.reason if parsed_response is None else parsed_response
                 request_errors = True
