@@ -2,12 +2,12 @@
 class Constants:
     EXCHANGE_NAME = "altmarkets"
     REST_URL = "https://v2.altmarkets.io/api/v2/peatio"
-    # WS_PRIVATE_URL = "wss://stream.crypto.com/v2/user"
     WS_PRIVATE_URL = "wss://v2.altmarkets.io/api/v2/ranger/private"
-    # WS_PUBLIC_URL = "wss://stream.crypto.com/v2/market"
     WS_PUBLIC_URL = "wss://v2.altmarkets.io/api/v2/ranger/public"
 
     HBOT_BROKER_ID = "HBOT"
+
+    USER_AGENT = "HBOT_AMv2"
 
     ENDPOINT = {
         # Public Endpoints

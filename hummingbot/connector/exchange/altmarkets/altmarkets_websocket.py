@@ -47,7 +47,7 @@ class AltmarketsWebsocket(RequestId):
 
     # connect to exchange
     async def connect(self):
-        extra_headers = self._auth.get_headers() if self._isPrivate else None
+        extra_headers = self._auth.get_headers() if self._isPrivate else {"User-Agent": Constants.USER_AGENT}
         self._client = await websockets.connect(self._WS_URL, extra_headers=extra_headers)
 
         return self._client

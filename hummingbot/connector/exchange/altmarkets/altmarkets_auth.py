@@ -2,6 +2,7 @@ import hashlib
 import hmac
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any
+from hummingbot.connector.exchange.altmarkets.altmarkets_constants import Constants
 
 
 class AltmarketsAuth():
@@ -40,5 +41,6 @@ class AltmarketsAuth():
             "X-Auth-Apikey": self.api_key,
             "X-Auth-Nonce": nonce,
             "X-Auth-Signature": signature,
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "User-Agent": Constants.USER_AGENT
         }

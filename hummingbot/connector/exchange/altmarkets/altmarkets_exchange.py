@@ -324,7 +324,7 @@ class AltmarketsExchange(ExchangeBase):
             qs_params: dict = params if method.upper() == "GET" else None
             req_params = ujson.dumps(params) if method.upper() == "POST" and params is not None else None
             # Generate auth headers if needed.
-            headers: dict = {"Content-Type": "application/json"}
+            headers: dict = {"Content-Type": "application/json", "User-Agent": Constants.USER_AGENT}
             if is_auth_required:
                 headers: dict = self._altmarkets_auth.get_headers()
             # Build request coro
