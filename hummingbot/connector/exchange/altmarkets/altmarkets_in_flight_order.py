@@ -117,7 +117,7 @@ class AltmarketsInFlightOrder(InFlightOrderBase):
         if self.executed_amount_base <= s_decimal_0:
             # No trades executed yet.
             return False
-        trade_id = order_update["updated_at"]
+        trade_id = f"{order_update['id']}-{order_update['updated_at']}"
         if trade_id in self.trade_id_set:
             # trade already recorded
             return False
@@ -149,11 +149,11 @@ class AltmarketsInFlightOrder(InFlightOrderBase):
         if self.executed_amount_base <= s_decimal_0:
             # No trades executed yet.
             return False
-        trade_id = trade_update["id"]
+        trade_id = f"{trade_update['order_id']}-{trade_update['created_at']}"
         if trade_id in self.trade_id_set:
             # trade already recorded
             return False
-        trade_update["exchange_trade_id"] = trade_id
+        trade_update["exchange_trade_id"] = trade_update["id"]
         self.trade_id_set.add(trade_id)
         self.fee_paid += trade_update.get("trade_fee") * self.executed_amount_base
         if not self.fee_asset:
