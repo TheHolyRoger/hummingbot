@@ -181,6 +181,8 @@ class AltmarketsExchange(ExchangeBase):
         """
         This function is called automatically by the clock.
         """
+        if self._poll_notifier.is_set():
+            self._poll_notifier.clear()
         super().start(clock, timestamp)
 
     def stop(self, clock: Clock):
