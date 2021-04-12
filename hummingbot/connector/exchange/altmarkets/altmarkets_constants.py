@@ -26,7 +26,7 @@ class Constants:
     WS_SUB = {
         "TRADES": "{trading_pair}.trades",
         "ORDERS": "{trading_pair}.ob-inc",
-        "USER_ORDERS_TRADES": ['order', 'trade'],
+        "USER_ORDERS_TRADES": ['balance', 'order', 'trade'],
 
     }
 
@@ -34,6 +34,7 @@ class Constants:
         "ORDERS_SNAPSHOT": ".ob-snap",
         "ORDERS_UPDATE": ".ob-inc",
         "TRADES_UPDATE": ".trades",
+        "USER_BALANCES": "balance",
         "USER_ORDERS": "order",
         "USER_TRADES": "trade",
     }
