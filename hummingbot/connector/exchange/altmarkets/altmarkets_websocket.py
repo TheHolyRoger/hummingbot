@@ -38,6 +38,10 @@ class AltmarketsWebsocket(RequestId):
         self._is_subscribed = False
 
     @property
+    def is_connected(self):
+        return self._client.open if self._client is not None else False
+
+    @property
     def is_subscribed(self):
         return self._is_subscribed
 

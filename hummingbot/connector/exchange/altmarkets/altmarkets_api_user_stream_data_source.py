@@ -32,11 +32,16 @@ class AltmarketsAPIUserStreamDataSource(UserStreamTrackerDataSource):
         self._current_listen_key = None
         self._listen_for_user_stream_task = None
         self._last_recv_time: float = 0
+        self._ws: AltmarketsWebsocket = None
         super().__init__()
 
     @property
     def last_recv_time(self) -> float:
         return self._last_recv_time
+
+    @property
+    def is_connected(self):
+        return self._ws.is_connected if self._ws is not None else False
 
     async def _listen_to_orders_trades_balances(self) -> AsyncIterable[Any]:
         """
@@ -44,13 +49,14 @@ class AltmarketsAPIUserStreamDataSource(UserStreamTrackerDataSource):
         """
 
         try:
-            ws = AltmarketsWebsocket(self._altmarkets_auth)
+            self._ws = AltmarketsWebsocket(self._altmarkets_auth)
 
-            await ws.connect()
+            await self._ws.connect()
 
-            await ws.subscribe(Constants.WS_SUB["USER_ORDERS_TRADES"])
+            await self._ws.subscribe(Constants.WS_SUB["USER_ORDERS_TRADES"])
 
-            async for msg in ws.on_message():
+            async for msg in self._ws.on_message():
+                # print(f"user msg: {msg}")
                 self._last_recv_time = time.time()
                 if msg is not None:
                     yield msg
@@ -58,7 +64,7 @@ class AltmarketsAPIUserStreamDataSource(UserStreamTrackerDataSource):
         except Exception as e:
             raise e
         finally:
-            await ws.disconnect()
+            await self._ws.disconnect()
             await asyncio.sleep(5)
 
     async def listen_for_user_stream(self, ev_loop: asyncio.BaseEventLoop, output: asyncio.Queue) -> AsyncIterable[Any]:

@@ -814,7 +814,8 @@ class AltmarketsExchange(ExchangeBase):
         """
         now = time.time()
         poll_interval = (Constants.SHORT_POLL_INTERVAL
-                         if now - self._user_stream_tracker.last_recv_time > 120.0
+                         if not self._user_stream_tracker.is_connected
+                         or now - self._user_stream_tracker.last_recv_time > Constants.USER_TRACKER_MAX_AGE
                          else Constants.LONG_POLL_INTERVAL)
         last_tick = int(self._last_timestamp / poll_interval)
         current_tick = int(timestamp / poll_interval)

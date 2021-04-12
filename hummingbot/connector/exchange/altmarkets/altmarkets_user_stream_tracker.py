@@ -55,6 +55,10 @@ class AltmarketsUserStreamTracker(UserStreamTracker):
         return self._data_source
 
     @property
+    def is_connected(self) -> float:
+        return self._data_source.is_connected if self._data_source is not None else False
+
+    @property
     def exchange_name(self) -> str:
         """
         *required
