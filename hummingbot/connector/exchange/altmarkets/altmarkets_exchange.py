@@ -543,8 +543,9 @@ class AltmarketsExchange(ExchangeBase):
             raise
         except AltmarketsAPIError as e:
             errors_found = e.error_payload.get('errors', e.error_payload)
-            order_state = errors_found.get("state", None)
-            if order_state is None:
+            if isinstance(errors_found, dict):
+                order_state = errors_found.get("state", None)
+            if order_state is None or 'market.order.invaild_id_or_uuid' in errors_found:
                 self._order_not_found_records[order_id] = self._order_not_found_records.get(order_id, 0) + 1
         if order_state in Constants.ORDER_STATES['CANCEL_WAIT'] or \
                 self._order_not_found_records.get(order_id, 0) >= self.ORDER_NOT_EXIST_CANCEL_COUNT:
