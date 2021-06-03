@@ -39,7 +39,7 @@ then
   FOLDER=$DEFAULT_FOLDER
 fi
 echo
-echo "Creating your hummingbot instance: \"$INSTANCE_NAME\" (coinalpha/hummingbot:$TAG)"
+echo "Creating your hummingbot instance: \"$INSTANCE_NAME\" (theholiestroger/hummingbot:$TAG)"
 echo
 echo "Your files will be saved to:"
 echo "=> instance folder:    $PWD/$FOLDER"
@@ -69,4 +69,4 @@ docker run -it \
 --mount "type=bind,source=$(pwd)/$FOLDER/hummingbot_logs,destination=/logs/" \
 --mount "type=bind,source=$(pwd)/$FOLDER/hummingbot_data,destination=/data/" \
 --mount "type=bind,source=$(pwd)/$FOLDER/hummingbot_scripts,destination=/scripts/" \
-coinalpha/hummingbot:$TAG
+theholiestroger/hummingbot:$TAG
