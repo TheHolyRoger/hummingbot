@@ -54,6 +54,7 @@ We created hummingbot to promote **decentralized market-making**: enabling membe
 | <img src="assets/okex_logo.png" alt="OKEx" width="90" /> | okex | [OKEx](https://www.okex.com/) | 3 | [API](https://www.okex.com/docs/en/) |![YELLOW](https://via.placeholder.com/15/ffff00/?text=+) |
 | <img src="assets/probit_global_logo.png" alt="Probit Global" width="90" /> | probit | [Probit Global](https://www.probit.com/en-us/) | 1 | [API](https://docs-en.probit.com/docs) |![YELLOW](https://via.placeholder.com/15/ffff00/?text=+) |
 | <img src="assets/probit_korea_logo.png" alt="Probit Korea" width="90" /> | probit_kr | [Probit Korea](https://www.probit.kr/en-us/) | 1 | [API](https://docs-en.probit.com/docs) |![YELLOW](https://via.placeholder.com/15/ffff00/?text=+) |
+| <img src="assets/altmarkets_logo1.png" alt="AltMarkets.io" width="90" /> | altmarkets | [AltMarkets.io](https://altmarkets.io/) | 2 | [API](https://altmarkets.io/) |![GREEN](https://via.placeholder.com/15/008000/?text=+) |
 
 
 ## Supported decentralized exchanges
