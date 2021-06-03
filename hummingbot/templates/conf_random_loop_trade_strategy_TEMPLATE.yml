@@ -1,0 +1,60 @@
+########################################################
+###       Random Loop Trade strategy config          ###
+########################################################
+
+template_version: 3
+strategy: null
+
+# The following configuations are only required for the
+# simple trade strategy
+
+# Exchange and token parameters
+market: null
+market_trading_pair_tuple: null
+
+# Size of the Order
+order_amount: null
+# Set these to 0 to disable random order amount
+order_amount_min: null
+order_amount_max: null
+
+# Type of Order (Limit/Market)
+order_type: null
+
+
+
+# In case of Limit Order.......
+# Use random price from min/max values?
+order_pricetype_random: null
+# Use spread price instead of hard price?
+order_pricetype_spread: null
+
+# Price of Order (if not random)
+order_price: null
+# Setting these to 0 will disable random price
+order_price_min: null
+order_price_max: null
+# If using spread:
+order_spread: null
+# Setting these to 0 will disable random price
+order_spread_min: null
+order_spread_max: null
+# Change which price to use whilst calculating the spread.
+order_spread_pricetype: null
+
+
+
+# Time in seconds before cancelling the limit order
+# If cancel_order wait time is 60 and the order is still open after 60 seconds since placing the order,
+# it will cancel the limit order.
+cancel_order_wait_time: null
+
+# How long to wait before placing the order (in seconds)
+time_delay: null
+
+# Specify buy/sell. Set to True for Buy and False for Sell
+is_buy: null
+ping_pong_enabled: null
+
+# For more detailed information, see:
+# https://docs.hummingbot.io/strategies/simple-trade/#configuration-parameters
