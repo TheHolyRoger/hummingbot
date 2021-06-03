@@ -21,6 +21,9 @@ from hummingbot.client.config.security import Security
 from hummingbot.client.config.config_var import ConfigVar
 from hummingbot.core.utils.async_utils import safe_ensure_future
 from hummingbot.model.inventory_cost import InventoryCost
+from hummingbot.strategy.the_money_pit import (
+    TheMoneyPitStrategy
+)
 from hummingbot.strategy.pure_market_making import (
     PureMarketMakingStrategy
 )
@@ -34,7 +37,31 @@ if TYPE_CHECKING:
 
 
 no_restart_pmm_keys_in_percentage = ["bid_spread", "ask_spread", "order_level_spread", "inventory_target_base_pct"]
+pmm_k_append_perc = [
+    "trade_gain_allowed_loss",
+    "trade_gain_profit_wanted",
+    "trade_gain_ownside_allowedloss",
+    "trade_gain_profit_selloff",
+    "trade_gain_profit_buyin",
+    "market_indicator_reduce_orders_to_pct",
+]
+no_restart_pmm_keys_in_percentage = no_restart_pmm_keys_in_percentage + pmm_k_append_perc
 no_restart_pmm_keys = ["order_amount", "order_levels", "filled_order_delay", "inventory_skew_enabled", "inventory_range_multiplier"]
+pmm_k_append = [
+    "trade_gain_enabled",
+    "trade_gain_hours_buys",
+    "trade_gain_hours_sells",
+    "trade_gain_trades",
+    "trade_gain_ownside_enabled",
+    "trade_gain_careful_enabled",
+    "trade_gain_careful_limittrades",
+    "trade_gain_careful_hours",
+    "trade_gain_initial_max_buy",
+    "trade_gain_initial_min_sell",
+    "market_indicator_allow_profitable",
+    "market_indicator_expiry_minutes_hard",
+]
+no_restart_pmm_keys = no_restart_pmm_keys + pmm_k_append
 global_configs_to_display = ["0x_active_cancels",
                              "autofill_import",
                              "kill_switch_enabled",
@@ -160,6 +187,7 @@ class ConfigCommand:
             for config in missings:
                 self._notify(f"{config.key}: {str(config.value)}")
             if isinstance(self.strategy, PureMarketMakingStrategy) or \
+               isinstance(self.strategy, TheMoneyPitStrategy) or \
                isinstance(self.strategy, PerpetualMarketMakingStrategy):
                 updated = ConfigCommand.update_running_mm(self.strategy, key, config_var.value)
                 if updated:
