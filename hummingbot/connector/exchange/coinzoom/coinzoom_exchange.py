@@ -688,6 +688,10 @@ class CoinzoomExchange(ExchangeBase):
                 "averagePrice": 56518.7,
             }
         """
+
+        # Call Update balances on every message to catch order create, fill and cancel.
+        safe_ensure_future(self._update_balances())
+
         # Looks like CoinZoom might support clientOrderId eventually so leaving this here for now.
         # if order_msg.get('clientOrderId') is not None:
         #     client_order_id = order_msg["clientOrderId"]
@@ -708,8 +712,6 @@ class CoinzoomExchange(ExchangeBase):
         # Estimate fee
         order_msg["trade_fee"] = self.estimate_fee_pct(tracked_order.order_type is OrderType.LIMIT_MAKER)
         updated = tracked_order.update_with_order_update(order_msg)
-        # Call Update balances on every message to catch order create, fill and cancel.
-        safe_ensure_future(self._update_balances())
 
         if updated:
             safe_ensure_future(self._trigger_order_fill(tracked_order, order_msg))
