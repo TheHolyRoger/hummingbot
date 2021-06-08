@@ -575,7 +575,6 @@ class AltmarketsExchange(ExchangeBase):
         """
         while True:
             try:
-                self._poll_notifier = asyncio.Event()
                 await self._poll_notifier.wait()
                 await safe_gather(
                     self._update_balances(),
@@ -591,6 +590,8 @@ class AltmarketsExchange(ExchangeBase):
                 self.logger().network("Unexpected error while fetching account updates.", exc_info=True,
                                       app_warning_msg=warn_msg)
                 await asyncio.sleep(0.5)
+            finally:
+                self._poll_notifier = asyncio.Event()
 
     async def _update_balances(self):
         """
