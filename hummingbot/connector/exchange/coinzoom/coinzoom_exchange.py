@@ -9,6 +9,7 @@ from typing import (
 from decimal import Decimal
 import asyncio
 import aiohttp
+import copy
 import math
 import time
 import ujson
@@ -103,6 +104,7 @@ class CoinzoomExchange(ExchangeBase):
         self._trading_rules_polling_task = None
         self._last_poll_timestamp = 0
         self._throttler = Throttler(rate_limit = (8.0, 6))
+        self._real_time_balance_update = False
 
     @property
     def name(self) -> str:
@@ -783,6 +785,8 @@ class CoinzoomExchange(ExchangeBase):
         for asset_name in asset_names_to_remove:
             del self._account_available_balances[asset_name]
             del self._account_balances[asset_name]
+        self._in_flight_orders_snapshot = {k: copy.copy(v) for k, v in self._in_flight_orders.items()}
+        self._in_flight_orders_snapshot_timestamp = self.current_timestamp
 
     async def cancel_all(self, timeout_seconds: float) -> List[CancellationResult]:
         """
